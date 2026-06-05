@@ -192,7 +192,20 @@ async function batchUpdate(data){await gapi.client.sheets.spreadsheets.values.ba
 async function readSheet(tab){const r=await gapi.client.sheets.spreadsheets.values.get({spreadsheetId:sheetId,range:tab});return r.result.values||[];}
 function rowsToObjects(rows){if(!rows||rows.length<2)return[];const h=rows[0];return rows.slice(1).map(row=>{const o={};h.forEach((k,i)=>o[k]=row[i]??'');return o;});}
 async function appendRow(tab,values){await gapi.client.sheets.spreadsheets.values.append({spreadsheetId:sheetId,range:tab,valueInputOption:'RAW',insertDataOption:'INSERT_ROWS',resource:{values:[values]}});}
-async function loadAll(){const[txR,accR,catR,planR,budR]=await Promise.all([readSheet('Transactions'),readSheet('Accounts'),readSheet('Categories'),readSheet('PlannedPayments'),readSheet('Budgets')]);TX=rowsToObjects(txR).sort((a,b)=>new Date(b.date)-new Date(a.date));ACCOUNTS=rowsToObjects(accR).filter(a=>a.Active==='TRUE');const ac=rowsToObjects(catR).filter(c=>c.Active==='TRUE');CATS.expense=ac.filter(c=>c.Type==='expense');CATS.income=ac.filter(c=>c.Type==='income');PLANNED=rowsToObjects(planR).filter(p=>p.Active==='TRUE');BUDGETS=rowsToObjects(budR).filter(b=>b.Active==='TRUE');lastSync=new Date();}
+function normaliseTx(tx){
+  // Normalise type: BudgetBakers uses 'Expenses'/'Income', app uses 'expense'/'income'/'transfer'
+  const t=(tx.type||'').toLowerCase().trim();
+  if(t==='expenses'||t==='expense') tx.type='expense';
+  else if(t==='income') tx.type='income';
+  else if(t==='transfer') tx.type='transfer';
+  else tx.type='expense'; // safe fallback
+  // Normalise payment_type to lowercase
+  tx.payment_type=(tx.payment_type||'').toLowerCase().replace('_',' ');
+  // Ensure ref_currency_amount falls back to amount if missing
+  if(!tx.ref_currency_amount||tx.ref_currency_amount==='') tx.ref_currency_amount=tx.amount;
+  return tx;
+}
+async function loadAll(){const[txR,accR,catR,planR,budR]=await Promise.all([readSheet('Transactions'),readSheet('Accounts'),readSheet('Categories'),readSheet('PlannedPayments'),readSheet('Budgets')]);TX=rowsToObjects(txR).map(normaliseTx).sort((a,b)=>new Date(b.date)-new Date(a.date));ACCOUNTS=rowsToObjects(accR).filter(a=>a.Active==='TRUE');const ac=rowsToObjects(catR).filter(c=>c.Active==='TRUE');CATS.expense=ac.filter(c=>c.Type==='expense');CATS.income=ac.filter(c=>c.Type==='income');PLANNED=rowsToObjects(planR).filter(p=>p.Active==='TRUE');BUDGETS=rowsToObjects(budR).filter(b=>b.Active==='TRUE');lastSync=new Date();}
 function exportCSV(){const rows=[TX_HEADERS,...TX.map(tx=>TX_HEADERS.map(h=>tx[h]||''))];const csv=rows.map(r=>r.map(v=>`"${(v||'').toString().replace(/"/g,'""')}"`).join(',')).join('\n');const url=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));const a=document.createElement('a');a.href=url;a.download=`finance_${new Date().toISOString().split('T')[0]}.csv`;a.click();URL.revokeObjectURL(url);toast('CSV exported','suc');}
 async function boot(){try{await initGoogle();if(isTokenValid()&&gapi.client.getToken()){await onSignedIn();}else{hideSplash();showAuth();}}catch(e){console.error(e);hideSplash();showAuth();}}
 function hideSplash(){setTimeout(()=>{const s=document.getElementById('splash');s.classList.add('hide');setTimeout(()=>s.remove(),400);},900);}
