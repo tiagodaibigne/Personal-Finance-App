@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&family=Geist+Mono:wght@300;400;500;600&display=swap" rel="stylesheet"/>
 <style>
-:root{--bg:#0c0c0c;--bg-card:#1a1a1a;--bg-card2:#222222;--bg-input:#181818;--border:#2a2a2a;--border2:#202020;--t1:#dedede;--t2:#6a6a6a;--t3:#3e3e3e;--blue:#4672c4;--blue-s:rgba(70,114,196,.1);--green:#3d9468;--green-s:rgba(61,148,104,.1);--red:#a84848;--red-s:rgba(168,72,72,.1);--amber:#a87838;--purple:#7258a8;--nav:66px;--r:14px;--rsm:9px;--rxl:20px;--font:'DM Sans',sans-serif;--mono:'Geist Mono','DM Mono',monospace;--ease:cubic-bezier(.4,0,.2,1);--spring:cubic-bezier(.34,1.2,.64,1)}
+:root{--bg:#0c0c0c;--bg-card:#1a1a1a;--bg-card2:#222222;--bg-input:#181818;--border:#2a2a2a;--border2:#202020;--t1:#dedede;--t2:#6a6a6a;--t3:#3e3e3e;--blue:#4672c4;--blue-s:rgba(70,114,196,.1);--green:#3d9468;--green-s:rgba(61,148,104,.1);--red:#a84848;--red-s:rgba(168,72,72,.1);--amber:#a87838;--purple:#7258a8;--nav:66px;--r:14px;--rsm:9px;--rxl:20px;--font:'DM Sans',sans-serif;--mono:'Geist Mono','DM Mono',monospace;--ease:cubic-bezier(.4,0,.2,1);--spring:cubic-bezier(.34,1.2,.64,1);--safe-top:env(safe-area-inset-top,0px);--safe-bottom:env(safe-area-inset-bottom,0px)}
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;font-variant-numeric:tabular-nums;font-feature-settings:"tnum" 1,"zero" 0;-webkit-font-feature-settings:"tnum" 1,"zero" 0}
 html,body{height:100%;background:var(--bg);font-family:var(--font);color:var(--t1);-webkit-font-smoothing:antialiased;overflow:hidden}
 #app{height:100%;display:flex;flex-direction:column;max-width:430px;margin:0 auto;position:relative;overflow:hidden}
@@ -27,7 +27,7 @@ html,body{height:100%;background:var(--bg);font-family:var(--font);color:var(--t
 .btn-google{display:flex;align-items:center;gap:11px;background:var(--bg-card);border:1px solid var(--border);color:var(--t1);font-family:var(--font);font-size:14px;font-weight:500;padding:13px 24px;border-radius:var(--r);cursor:pointer;width:100%;justify-content:center}
 .auth-note{font-size:11px;color:var(--t3);text-align:center;line-height:1.6;max-width:260px}
 #main{flex:1;display:none;flex-direction:column;overflow:hidden}
-.scroll{flex:1;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;padding:0 14px calc(var(--nav) + 32px);scrollbar-width:none}
+.scroll{flex:1;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;padding:calc(var(--safe-top) + 8px) 14px calc(var(--nav) + var(--safe-bottom) + 32px);scrollbar-width:none}
 .scroll::-webkit-scrollbar{display:none}
 .page{display:none;animation:fu .18s var(--ease) both}
 .page.on{display:block}
@@ -58,14 +58,14 @@ html,body{height:100%;background:var(--bg);font-family:var(--font);color:var(--t
 .tx-m{font-size:10px;color:var(--t2);margin-top:2px}
 .tx-a{font-size:13px;font-weight:700;font-family:var(--mono);letter-spacing:-.02em;flex-shrink:0;color:var(--red)}
 .tx-a.inc{color:var(--green)}.tx-a.tra{color:var(--blue)}
-#nav{position:absolute;bottom:0;left:0;right:0;height:var(--nav);background:rgba(12,12,12,.92);backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);border-top:1px solid var(--border2);display:flex;align-items:flex-start;padding-top:8px;z-index:100}
+#nav{position:absolute;bottom:0;left:0;right:0;height:calc(var(--nav) + var(--safe-bottom));background:rgba(12,12,12,.92);backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);border-top:1px solid var(--border2);display:flex;align-items:flex-start;padding-top:8px;padding-bottom:var(--safe-bottom);z-index:100}
 .nav-items{display:flex;width:100%;justify-content:space-around}
 .ni{display:flex;flex-direction:column;align-items:center;gap:3px;background:none;border:none;color:var(--t3);cursor:pointer;padding:3px 12px;border-radius:10px;font-family:var(--font);position:relative;transition:color .14s}
 .ni.on{color:var(--blue)}
 .ni-pill{position:absolute;inset:0;background:var(--blue-s);border-radius:10px;opacity:0;transition:opacity .14s;pointer-events:none}
 .ni.on .ni-pill{opacity:1}
 .nl{font-size:9px;font-weight:500}
-.fab{position:absolute;bottom:calc(var(--nav) + 12px);right:14px;width:48px;height:48px;background:var(--blue);border-radius:50%;border:none;color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 4px 16px rgba(70,114,196,.38);z-index:90;transition:.14s}
+.fab{position:absolute;bottom:calc(var(--nav) + var(--safe-bottom) + 12px);right:14px;width:48px;height:48px;background:var(--blue);border-radius:50%;border:none;color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 4px 16px rgba(70,114,196,.38);z-index:90;transition:.14s}
 .fab:active{transform:scale(.91)}
 .overlay{position:absolute;inset:0;background:rgba(0,0,0,.78);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);z-index:200;display:flex;align-items:flex-end;opacity:0;pointer-events:none;transition:opacity .2s}
 .overlay.on{opacity:1;pointer-events:all}
@@ -124,7 +124,7 @@ select.fi{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.o
 .swatches{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}
 .sw{width:24px;height:24px;border-radius:50%;cursor:pointer;border:2px solid transparent;transition:.12s}
 .sw.on{border-color:var(--t1);transform:scale(1.15)}
-#toast{position:absolute;bottom:calc(var(--nav) + 64px);left:50%;transform:translateX(-50%) translateY(8px);background:var(--bg-card2);border:1px solid var(--border);color:var(--t1);font-size:12px;font-weight:500;padding:8px 15px;border-radius:var(--rsm);opacity:0;transition:opacity .16s,transform .16s;z-index:500;white-space:nowrap;pointer-events:none;max-width:88%}
+#toast{position:absolute;bottom:calc(var(--nav) + var(--safe-bottom) + 64px);left:50%;transform:translateX(-50%) translateY(8px);background:var(--bg-card2);border:1px solid var(--border);color:var(--t1);font-size:12px;font-weight:500;padding:8px 15px;border-radius:var(--rsm);opacity:0;transition:opacity .16s,transform .16s;z-index:500;white-space:nowrap;pointer-events:none;max-width:88%}
 #toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
 #toast.suc{color:var(--green);border-color:rgba(61,148,104,.3)}
 #toast.err{color:var(--red);border-color:rgba(168,72,72,.3)}
@@ -202,21 +202,33 @@ const getAcc=function(id){
       ||a.Name===id||a.Name.toLowerCase()===id.toLowerCase();
   })||{Name:id,Symbol:id,Currency:id.length<=3?id:'GBP',ID:id};
 };
-const getStats=(txs,s,e)=>{const f=txs.filter(tx=>{const d=new Date(tx.date);return d>=s&&d<=e;});const income=f.filter(t=>t.type==='income').reduce((a,t)=>a+(+t.ref_currency_amount||0),0);const expenses=f.filter(t=>t.type==='expense').reduce((a,t)=>a+(+t.ref_currency_amount||0),0);return{income,expenses,net:income-expenses,filtered:f};};
-function getAccBal(accId,cur){
-  var acc=ACCOUNTS.find(function(a){return a.ID===accId||a.Symbol===accId||a.Currency===accId;});
-  var init=+(acc&&acc.InitialBalance||0);
-  var sym=acc&&acc.Symbol||accId;
-  var txs=TX.filter(function(tx){
-    return tx.account===accId||tx.account===sym||(acc&&tx.account===acc.ID)||
-           (acc&&tx.account===acc.Currency)||(acc&&tx.account===acc.Currency.toLowerCase());
-  });
-  // Use absolute amounts with sign from type — normaliseTx already made amounts positive
+const getStats=(txs,s,e)=>{
+  const f=txs.filter(tx=>{const d=new Date(tx.date);return d>=s&&d<=e;});
+  // Use ref_currency_amount (GBP equivalent) for all stats
+  // ref_currency_amount is always in GBP regardless of transaction currency
+  const toGBPVal=t=>{
+    var ref=parseFloat(t.ref_currency_amount);
+    var amt=parseFloat(t.amount);
+    // If ref_currency_amount is missing/zero/same as amount, use amount directly
+    if(!ref||ref===0) ref=amt;
+    return Math.abs(ref)||0;
+  };
+  const income=f.filter(t=>t.type==='income').reduce((a,t)=>a+toGBPVal(t),0);
+  const expenses=f.filter(t=>t.type==='expense').reduce((a,t)=>a+toGBPVal(t),0);
+  return{income,expenses,net:income-expenses,filtered:f};};
+function getAccBal(accId){
+  // Find account — ID is exactly £, €, or Map2Growth
+  var acc=ACCOUNTS.find(function(a){return a.ID===accId;});
+  if(!acc)return 0;
+  var init=parseFloat(acc.InitialBalance)||0;
+  // Match transactions EXACTLY by account field
+  var txs=TX.filter(function(tx){return tx.account===accId;});
   var total=txs.reduce(function(sum,tx){
-    var a=Math.abs(parseFloat(tx.amount)||0);
+    var a=parseFloat(tx.amount)||0; // already positive from normaliseTx
     if(tx.type==='income') return sum+a;
     if(tx.type==='expense') return sum-a;
-    return sum; // transfers: neutral for now
+    // transfers: skip — handled separately
+    return sum;
   },0);
   return init+total;
 }
@@ -317,11 +329,20 @@ function normaliseTx(tx){
   const accKey=(tx.account||'').toLowerCase().trim();
   // Account kept as raw BudgetBakers value (£, €, Map2Growth) — matches Accounts tab IDs
 
-  // ── Column B: category — map BudgetBakers names to internal IDs ───────────
-  const catKey=(tx.category||'').toLowerCase().trim();
-  // First try exact map, then check if it already looks like an internal ID
-  if(BB_CAT_MAP[catKey]) tx.category=BB_CAT_MAP[catKey];
-  // else leave as-is — the getCat function will show the raw name as fallback
+  // ── Column B: category — keep as raw BudgetBakers name (IS the ID now) ────
+  if(tx.category) tx.category=tx.category.trim();
+  // Only convert old internal IDs (cat_food etc) to display names
+  if(tx.category&&tx.category.startsWith('cat_')){
+    var legacyNames={
+      'cat_food':'Eating Out','cat_bills':'Bill & Services','cat_shop':'Shopping',
+      'cat_trans':'Transport','cat_health':'Health','cat_entert':'Entertainment',
+      'cat_travel':'Travel','cat_fitness':'Fitness','cat_home':'Home',
+      'cat_family':'Family','cat_edu':'Education','cat_other':'General Out',
+      'cat_salary':'Collins In','cat_free':'Freelance','cat_invest':'Investments In',
+      'cat_other_i':'General In','cat_coffee':'Coffee',
+    };
+    tx.category=legacyNames[tx.category]||tx.category;
+  }
 
   // ── Column G: payment_type — normalise to readable label ─────────────────
   const ptMap={
@@ -452,7 +473,7 @@ function renderPlanning(el){
             var row=TX_HEADERS.map(function(h){
               var map={account:plan.Account||ACCOUNTS[0].ID,category:plan.Category,currency:plan.Currency,
                 amount:plan.Amount,ref_currency_amount:String(ref),type:'Expenses',payment_type:'transfer',
-                note:plan.Name,date:new Date().toISOString().substring(0,10)+' '+new Date().toTimeString().substring(0,8),payee:plan.Payee||''};
+                note:plan.Name,date:getLocalDateTimeStr(),payee:plan.Payee||''};
               return map[h]!==undefined?map[h]:'';
             });
             await appendRow('Transactions',row);
@@ -511,20 +532,38 @@ function openAddPlanned(onDone){
   var catOpts=([].concat(CATS.expense,CATS.income)).map(function(c){return'<option value="'+c.ID+'">'+c.Name+'</option>';}).join('');
   var accOpts=ACCOUNTS.map(function(a){return'<option value="'+a.ID+'">'+a.Symbol+' '+a.Name+'</option>';}).join('');
   overlay.innerHTML='<div class="sheet"><div class="handle"></div><div class="mtitle">Add Planned Payment</div>'
-    +'<div class="fg"><label class="fl">Name</label><input class="fi" id="np-name" placeholder="e.g. Rent, Netflix"/></div>'
+    +'<div class="fg"><label class="fl">Name</label><input class="fi" id="np-name" placeholder="e.g. Rent, Netflix, Spotify"/></div>'
     +'<div class="fg"><label class="fl">Amount</label>'
     +'<div style="display:flex;gap:6px"><input class="fi big" id="np-amount" type="number" placeholder="0.00" style="flex:1"/>'
     +'<select class="fi" id="np-cur" style="width:80px"><option>GBP</option><option>EUR</option><option>USD</option></select></div></div>'
     +'<div class="fg"><label class="fl">Account</label><select class="fi" id="np-acc">'+accOpts+'</select></div>'
     +'<div class="fg"><label class="fl">Category</label><select class="fi" id="np-cat">'+catOpts+'</select></div>'
-    +'<div class="fg"><label class="fl">Frequency</label>'
-    +'<select class="fi" id="np-freq"><option value="Monthly">Monthly</option><option value="Weekly">Weekly</option><option value="Quarterly">Quarterly</option><option value="Yearly">Yearly</option></select></div>'
-    +'<div class="fg"><label class="fl">Next due date</label><input class="fi" id="np-date" type="date" style="color-scheme:dark" value="'+new Date().toISOString().substring(0,10)+'"/></div>'
+    +'<div class="fg"><label class="fl">How often</label>'
+    +'<select class="fi" id="np-freq">'
+    +'<option value="Monthly">Monthly</option>'
+    +'<option value="Weekly">Weekly — every week</option>'
+    +'<option value="Biweekly">Fortnightly — every 2 weeks</option>'
+    +'<option value="Quarterly">Quarterly — every 3 months</option>'
+    +'<option value="Yearly">Yearly — once a year</option>'
+    +'</select></div>'
+    +'<div class="fg" id="np-day-wrap"><label class="fl">Day of month it falls on</label>'
+    +'<input class="fi" id="np-day" type="number" min="1" max="31" placeholder="e.g. 1 for 1st, 25 for 25th"/></div>'
+    +'<div class="fg"><label class="fl">Next due date</label><input class="fi" id="np-date" type="date" style="color-scheme:dark" value="'+new Date().toLocaleDateString('en-CA')+'"/></div>'
+    +'<div class="fg"><label class="fl">Auto-log when due</label>'
+    +'<select class="fi" id="np-auto"><option value="manual">Manual — I tap Log now each time</option><option value="auto">Automatic — log on due date when I open app</option></select></div>'
     +'<div class="fg"><label class="fl">Payee (optional)</label><input class="fi" id="np-payee" placeholder="e.g. PA Housing"/></div>'
     +'<button class="btn pri" id="np-save">Add Payment</button>'
     +'<button class="btn sec" id="np-cancel">Cancel</button></div>';
   document.body.appendChild(overlay);
   requestAnimationFrame(function(){overlay.classList.add('on');});
+  var npFreq=document.getElementById('np-freq');
+  var npDayWrap=document.getElementById('np-day-wrap');
+  if(npFreq&&npDayWrap){
+    npFreq.addEventListener('change',function(){
+      var v=npFreq.value;
+      npDayWrap.style.display=(v==='Monthly'||v==='Quarterly'||v==='Yearly')?'block':'none';
+    });
+  }
   document.getElementById('np-save').addEventListener('click',async function(){
     var name=document.getElementById('np-name').value.trim();
     var amount=document.getElementById('np-amount').value;
@@ -533,12 +572,15 @@ function openAddPlanned(onDone){
     var cat=document.getElementById('np-cat').value;
     var freq=document.getElementById('np-freq').value;
     var date=document.getElementById('np-date').value;
+    var dayOfMonth=document.getElementById('np-day')&&document.getElementById('np-day').value?document.getElementById('np-day').value:'';
+    var autoLog=document.getElementById('np-auto').value;
     var payee=document.getElementById('np-payee').value.trim();
     if(!name||!amount||!date){toast('Fill in all required fields','err');return;}
     var btn=document.getElementById('np-save');btn.disabled=true;btn.textContent='Saving…';
     try{
       var id='plan_'+Date.now();
-      await appendRow('PlannedPayments',[id,name,amount,cur,cat,acc,freq,date,payee,'TRUE','']);
+      var notes='day:'+dayOfMonth+';auto:'+autoLog;
+      await appendRow('PlannedPayments',[id,name,amount,cur,cat,acc,freq,date,payee,'TRUE',notes]);
       await loadAll();close();toast(name+' added ✓','suc');if(onDone)onDone();
     }catch(e){toast('Failed to save','err');}
     finally{btn.disabled=false;btn.textContent='Add Payment';}
@@ -855,6 +897,64 @@ async function repairCategoriesInSheet(){
   }
 }
 
+function getLocalDateTimeStr(dateOnly){
+  var now=new Date();
+  var date=dateOnly||now.toLocaleDateString('en-CA'); // YYYY-MM-DD
+  var hh=String(now.getHours()).padStart(2,'0');
+  var mm=String(now.getMinutes()).padStart(2,'0');
+  var ss=String(now.getSeconds()).padStart(2,'0');
+  return date+' '+hh+':'+mm+':'+ss;
+}
+
+async function checkAutoPlanned(){
+  var today=new Date();
+  var todayStr=today.toLocaleDateString('en-CA');
+  for(var i=0;i<PLANNED.length;i++){
+    var p=PLANNED[i];
+    var notes=p.Notes||'';
+    var isAuto=notes.includes('auto:auto');
+    if(!isAuto)continue;
+    var nextDate=p.NextDate?p.NextDate.substring(0,10):'';
+    if(nextDate>todayStr)continue;
+    // Check if already logged today
+    var alreadyLogged=TX.find(function(tx){
+      return tx.note===p.Name&&tx.date&&tx.date.substring(0,10)===todayStr;
+    });
+    if(alreadyLogged)continue;
+    // Auto-log it
+    try{
+      var fxR2={GBP:1,EUR:0.855,USD:0.787};
+      var ref=parseFloat(((+p.Amount)*(fxR2[p.Currency]||1)).toFixed(2));
+      var row=TX_HEADERS.map(function(h){
+        var map={account:p.Account||ACCOUNTS[0]&&ACCOUNTS[0].ID||'£',
+          category:p.Category,currency:p.Currency,
+          amount:p.Amount,ref_currency_amount:String(ref),
+          type:'Expenses',payment_type:'transfer',
+          note:p.Name,date:getLocalDateTimeStr(),payee:p.Payee||''};
+        return map[h]!==undefined?map[h]:'';
+      });
+      await appendRow('Transactions',row);
+      toast('Auto-logged: '+p.Name,'suc');
+      // Advance next date
+      var next=new Date(p.NextDate);
+      var freq=(p.Frequency||'Monthly').toLowerCase();
+      if(freq==='monthly') next.setMonth(next.getMonth()+1);
+      else if(freq==='weekly') next.setDate(next.getDate()+7);
+      else if(freq==='biweekly') next.setDate(next.getDate()+14);
+      else if(freq==='quarterly') next.setMonth(next.getMonth()+3);
+      else if(freq==='yearly') next.setFullYear(next.getFullYear()+1);
+      // Update NextDate in sheet
+      var planRows=await readSheet('PlannedPayments');
+      var planIdx=planRows.findIndex(function(r,i){return i>0&&r[0]===p.ID;});
+      if(planIdx>0){
+        await gapi.client.sheets.spreadsheets.values.update({
+          spreadsheetId:sheetId,range:'PlannedPayments!H'+(planIdx+1),
+          valueInputOption:'RAW',resource:{values:[[next.toLocaleDateString('en-CA')]]}
+        });
+      }
+    }catch(e){console.error('Auto-log failed for '+p.Name,e);}
+  }
+}
 window.addEventListener('load',boot);
 if('serviceWorker' in navigator)navigator.serviceWorker.register('service-worker.js').catch(()=>{});
 </script>
