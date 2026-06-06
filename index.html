@@ -406,124 +406,184 @@ function renderRecords(el){let search='',filter='all';const redraw=()=>{const li
 function getStatRange(){const now=new Date();if(statPeriod==='month'){const s=new Date(now.getFullYear(),now.getMonth()+statMonthOff,1);return{start:s,end:new Date(now.getFullYear(),now.getMonth()+statMonthOff+1,0)};}if(statPeriod==='year')return{start:new Date(statYear,0,1),end:new Date(statYear,11,31)};if(statPeriod==='all')return{start:new Date('2000-01-01'),end:new Date()};return{start:new Date(statCustomS),end:new Date(statCustomE)};}
 function getStatLabel(){const now=new Date();if(statPeriod==='month'){const d=new Date(now.getFullYear(),now.getMonth()+statMonthOff,1);if(statMonthOff===0)return'This month';if(statMonthOff===-1)return'Last month';return d.toLocaleDateString('en-GB',{month:'long',year:'numeric'});}if(statPeriod==='year')return String(statYear);if(statPeriod==='all')return'All time';return`${statCustomS} → ${statCustomE}`;}
 function getEarliestYear(){return TX.length?Math.min(...TX.map(t=>new Date(t.date).getFullYear())):new Date().getFullYear();}
-function renderStatistics(el){const{start,end}=getStatRange();const stats=getStats(TX,start,end);const savRate=stats.income>0?((stats.net/stats.income)*100).toFixed(1):'0.0';const label=getStatLabel();const earliestYear=getEarliestYear(),thisYear=new Date().getFullYear();const byCat={};stats.filtered.filter(t=>t.type==='expense').forEach(t=>{byCat[t.category]=(byCat[t.category]||0)+(+t.ref_currency_amount||0);});const expTotal=Object.values(byCat).reduce((a,v)=>a+v,0);const bdItems=Object.entries(byCat).map(([id,amt])=>({id,amt,pct:expTotal>0?(amt/expTotal)*100:0})).sort((a,b)=>b.amt-a.amt).slice(0,10);const views=['summary','income','expenses','net','savings','balance'];el.innerHTML=`<div class="ph"><h1 class="pt">Statistics</h1></div><div class="ptabs"><button class="pt2${statPeriod==='month'?' on':''}" data-per="month">Month</button><button class="pt2${statPeriod==='year'?' on':''}" data-per="year">Year</button><button class="pt2${statPeriod==='custom'?' on':''}" data-per="custom">Range</button><button class="pt2${statPeriod==='all'?' on':''}" data-per="all">All time</button></div>${statPeriod==='month'?`<div style="display:flex;align-items:center;gap:7px;margin-bottom:12px"><button class="parr" id="sp"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><polyline points="15,18 9,12 15,6"/></svg></button><div style="flex:1;text-align:center;font-size:13px;font-weight:600">${label}</div><button class="parr" id="sn"${statMonthOff>=0?' disabled':''}><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><polyline points="9,18 15,12 9,6"/></svg></button></div>`:''}${statPeriod==='year'?`<div style="display:flex;align-items:center;gap:7px;margin-bottom:12px"><button class="parr" id="syp"${statYear<=earliestYear?' disabled':''}><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><polyline points="15,18 9,12 15,6"/></svg></button><div style="flex:1;text-align:center;font-size:13px;font-weight:600">${statYear}</div><button class="parr" id="syn"${statYear>=thisYear?' disabled':''}><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><polyline points="9,18 15,12 9,6"/></svg></button></div>`:''}${statPeriod==='custom'?`<div style="display:flex;align-items:center;gap:7px;margin-bottom:12px"><input type="date" class="fi" id="cs" value="${statCustomS}" style="flex:1;font-size:12px;color-scheme:dark"/><span style="color:var(--t3);font-size:11px">→</span><input type="date" class="fi" id="ce" value="${statCustomE}" style="flex:1;font-size:12px;color-scheme:dark"/></div>`:''}`;const viewSel=document.createElement('div');viewSel.style.cssText='display:flex;gap:5px;margin-bottom:12px;overflow-x:auto;scrollbar-width:none;padding-bottom:2px';viewSel.innerHTML=views.map(v=>`<button class="fc${statView===v?' on':''}" data-view="${v}" style="white-space:nowrap;text-transform:capitalize">${v}</button>`).join('');el.appendChild(viewSel);const sc=document.createElement('div');sc.id='stat-content';el.appendChild(sc);function rSC(){
-    if(statView==='summary'){
-      sc.innerHTML=`
-        <div class="sc2">
-          <div class="sc"><div class="sc-l">Income</div><div class="sc-v pos">+${fmt(stats.income)}</div></div>
-          <div class="sc"><div class="sc-l">Expenses</div><div class="sc-v red">-${fmt(stats.expenses)}</div></div>
-        </div>
-        <div class="sc2">
-          <div class="sc"><div class="sc-l">Net</div><div class="sc-v ${stats.net>=0?'pos':'neg'}">${stats.net>=0?'+':''}${fmt(stats.net)}</div></div>
-          <div class="sc"><div class="sc-l">Savings rate</div><div class="sc-v ${parseFloat(savRate)>=0?'pos':'neg'}">${savRate}%</div></div>
-        </div>
-        <div class="sc2">
-          <div class="sc"><div class="sc-l">Transactions</div><div class="sc-v">${stats.filtered.length}</div></div>
-          <div class="sc"><div class="sc-l">Avg expense</div><div class="sc-v">${stats.filtered.filter(t=>t.type==='expense').length>0?fmt(stats.expenses/stats.filtered.filter(t=>t.type==='expense').length):'—'}</div></div>
-        </div>
-        <div class="sh" style="margin-top:6px"><span class="st">Income vs Expenses</span></div>
-        <div class="card" style="padding:14px;text-align:center">
-          ${donut([{c:'var(--green)',v:stats.income,n:'Income'},{c:'var(--red)',v:stats.expenses,n:'Expenses'}],fmt(stats.net),stats.net>=0?'surplus':'deficit','incexp')}
-          <div style="display:flex;justify-content:center;gap:16px;margin-top:4px">
-            <div style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--t2)"><div style="width:6px;height:6px;border-radius:50%;background:var(--green)"></div>Income</div>
-            <div style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--t2)"><div style="width:6px;height:6px;border-radius:50%;background:var(--red)"></div>Expenses</div>
-          </div>
-        </div>
-        ${bdItems.length>0?`<div class="sh"><span class="st">Spending by category</span></div>
-        <div class="card" style="padding:14px;text-align:center">
-          ${donut(bdItems.slice(0,6).map(b=>{const c=getCat(b.id);return{c:c.Colour,v:b.amt,n:c.Name};}),fmt(expTotal),'spend','stat-cat')}
-          ${bdItems.map(({id,amt,pct})=>{const c=getCat(id);return`
-            <div style="display:flex;align-items:center;gap:9px;padding:7px 0;border-bottom:1px solid var(--border2)">
-              <div style="width:7px;height:7px;border-radius:50%;background:${c.Colour};flex-shrink:0"></div>
-              <div style="flex:1;font-size:12px;font-weight:500;text-align:left">${c.Name}</div>
-              <div style="font-size:12px;font-weight:700;font-family:var(--mono);color:var(--red)">-${fmt(amt)}</div>
-            </div>`;}).join('')}
-        </div>`:''}
-        ${stats.filtered.length===0?`<div class="empty"><p>No data for ${label.toLowerCase()}</p></div>`:''}`;
-    } else if(statView==='income'){
-      // Build monthly series for selected period
-      const incTxs=stats.filtered.filter(t=>t.type==='income'||t.type==='Income');
-      const byCatInc={};
-      incTxs.forEach(t=>{byCatInc[t.category]=(byCatInc[t.category]||0)+Math.abs(parseFloat(t.ref_currency_amount||t.amount)||0);});
-      const incItems=Object.entries(byCatInc).map(([id,amt])=>({id,amt})).sort((a,b)=>b.amt-a.amt);
-      sc.innerHTML=`
-        <div class="sc2">
-          <div class="sc"><div class="sc-l">Total income</div><div class="sc-v pos">+${fmt(stats.income)}</div></div>
-          <div class="sc"><div class="sc-l">Transactions</div><div class="sc-v">${incTxs.length}</div></div>
-        </div>
-        ${incItems.length>0?`<div class="sh"><span class="st">Income by source</span></div>
-        <div class="card" style="padding:14px;text-align:center">
-          ${donut(incItems.slice(0,6).map(b=>{const c=getCat(b.id);return{c:c.Colour,v:b.amt,n:c.Name};}),fmt(stats.income),'income','inc-cat')}
-          ${incItems.map(({id,amt})=>{const cat=getCat(id);const pct=stats.income>0?((amt/stats.income)*100).toFixed(1):'0';return`
-            <div style="display:flex;align-items:center;gap:9px;padding:7px 0;border-bottom:1px solid var(--border2)">
-              <div style="width:7px;height:7px;border-radius:50%;background:${cat.Colour};flex-shrink:0"></div>
-              <div style="flex:1;font-size:12px;font-weight:500;text-align:left">${cat.Name}</div>
-              <div style="font-size:11px;color:var(--t2);margin-right:6px">${pct}%</div>
-              <div style="font-size:12px;font-weight:700;font-family:var(--mono);color:var(--green)">+${fmt(amt)}</div>
-            </div>`;}).join('')}
-        </div>`:''}
-        ${stats.filtered.length===0?`<div class="empty"><p>No income data for ${label.toLowerCase()}</p></div>`:''}`;
-    } else if(statView==='expenses'){
-      sc.innerHTML=`
-        <div class="sc2">
-          <div class="sc"><div class="sc-l">Total expenses</div><div class="sc-v red">-${fmt(stats.expenses)}</div></div>
-          <div class="sc"><div class="sc-l">Transactions</div><div class="sc-v">${stats.filtered.filter(t=>t.type==='expense'||t.type==='expenses').length}</div></div>
-        </div>
-        ${bdItems.length>0?`<div class="sh"><span class="st">By category — ${label}</span></div>
-        <div class="card" style="padding:14px;text-align:center">
-          ${donut(bdItems.slice(0,6).map(b=>{const c=getCat(b.id);return{c:c.Colour,v:b.amt,n:c.Name};}),fmt(expTotal),'spend','exp-cat')}
-          ${bdItems.map(({id,amt,pct})=>{const c=getCat(id);return`
-            <div style="display:flex;align-items:center;gap:9px;padding:7px 0;border-bottom:1px solid var(--border2)">
-              <div style="width:7px;height:7px;border-radius:50%;background:${c.Colour};flex-shrink:0"></div>
-              <div style="flex:1;font-size:12px;font-weight:500;text-align:left">${c.Name}</div>
-              <div style="font-size:11px;color:var(--t2);margin-right:6px">${pct.toFixed(1)}%</div>
-              <div style="font-size:12px;font-weight:700;font-family:var(--mono);color:var(--red)">-${fmt(amt)}</div>
-            </div>`;}).join('')}
-        </div>`:''}`;
-    } else if(statView==='net'){
-      sc.innerHTML=`
-        <div class="sc2">
-          <div class="sc"><div class="sc-l">Net for ${label}</div><div class="sc-v ${stats.net>=0?'pos':'neg'}">${stats.net>=0?'+':''}${fmt(stats.net)}</div></div>
-          <div class="sc"><div class="sc-l">vs income</div><div class="sc-v">${stats.income>0?((stats.net/stats.income)*100).toFixed(1):0}%</div></div>
-        </div>
-        <div class="sc2">
-          <div class="sc"><div class="sc-l">Income</div><div class="sc-v pos">+${fmt(stats.income)}</div></div>
-          <div class="sc"><div class="sc-l">Expenses</div><div class="sc-v red">-${fmt(stats.expenses)}</div></div>
-        </div>`;
-    } else if(statView==='savings'){
-      sc.innerHTML=`
-        <div class="sc2">
-          <div class="sc"><div class="sc-l">Savings rate</div><div class="sc-v ${parseFloat(savRate)>=0?'pos':'neg'}">${savRate}%</div></div>
-          <div class="sc"><div class="sc-l">Saved — ${label}</div><div class="sc-v pos">+${fmt(Math.max(0,stats.net))}</div></div>
-        </div>
-        <div class="sc2">
-          <div class="sc"><div class="sc-l">Income</div><div class="sc-v pos">+${fmt(stats.income)}</div></div>
-          <div class="sc"><div class="sc-l">Spent</div><div class="sc-v red">-${fmt(stats.expenses)}</div></div>
-        </div>`;
-    } else if(statView==='balance'){
-      // Real balance per account using getAccBal
-      const allBal=ACCOUNTS.map(function(a){
-        var bal=getAccBal(a.ID);
-        var gbpBal=a.Currency==='GBP'?bal:bal*(a.Currency==='EUR'?0.855:0.787);
-        return{...a,bal,gbpBal};
-      });
-      const totalGBP=allBal.reduce(function(sum,a){return sum+a.gbpBal;},0);
-      sc.innerHTML=`
-        <div class="sc2" style="grid-template-columns:1fr">
-          <div class="sc"><div class="sc-l">Total balance (GBP equiv.)</div><div class="sc-v ${totalGBP>=0?'pos':'neg'}">${totalGBP>=0?'+':''}${fmt(totalGBP)}</div></div>
-        </div>
-        ${allBal.map(a=>`
-          <div class="sc" style="margin-bottom:8px">
-            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
-              <div class="sc-l">${a.Name}</div>
-              <div style="font-size:11px;color:var(--t2)">${a.Currency}</div>
-            </div>
-            <div class="sc-v ${a.bal>=0?'pos':'neg'}">${a.bal>=0?'+':''}${fmt(Math.abs(a.bal),a.Currency)}</div>
-            ${a.Currency!=='GBP'?`<div style="font-size:10px;color:var(--t2);margin-top:3px">≈ ${fmt(Math.abs(a.gbpBal))} GBP</div>`:''}
-          </div>`).join('')}`;
-      setTimeout(function(){document.querySelectorAll('.donut-seg').forEach(function(s){});},50);
-    }
+function renderStatistics(el){
+  var range=getStatRange();
+  var stats=getStats(TX,range.start,range.end);
+  var savRate=stats.income>0?((stats.net/stats.income)*100).toFixed(1):'0.0';
+  var label=getStatLabel();
+  var earliestYear=getEarliestYear(),thisYear=new Date().getFullYear();
+  var byCat={};
+  stats.filtered.filter(function(t){return(t.type||'').toLowerCase()==='expense';}).forEach(function(t){
+    byCat[t.category]=(byCat[t.category]||0)+Math.abs(parseFloat(t.ref_currency_amount||t.amount)||0);
+  });
+  var expTotal=Object.values(byCat).reduce(function(a,v){return a+v;},0);
+  var bdItems=Object.entries(byCat).map(function(e){return{id:e[0],amt:e[1],pct:expTotal>0?(e[1]/expTotal)*100:0};}).sort(function(a,b){return b.amt-a.amt;}).slice(0,10);
+  var views=['summary','income','expenses','net','savings','balance'];
+
+  var html='<div class="ph"><h1 class="pt">Statistics</h1></div>';
+  html+='<div class="ptabs">'
+    +'<button class="pt2'+(statPeriod==='month'?' on':'')+'" data-per="month">Month</button>'
+    +'<button class="pt2'+(statPeriod==='year'?' on':'')+'" data-per="year">Year</button>'
+    +'<button class="pt2'+(statPeriod==='custom'?' on':'')+'" data-per="custom">Range</button>'
+    +'<button class="pt2'+(statPeriod==='all'?' on':'')+'" data-per="all">All time</button>'
+    +'</div>';
+
+  var prevSVG='<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><polyline points="15,18 9,12 15,6"/></svg>';
+  var nextSVG='<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><polyline points="9,18 15,12 9,6"/></svg>';
+  if(statPeriod==='month'){
+    html+='<div style="display:flex;align-items:center;gap:7px;margin-bottom:12px">'
+      +'<button class="parr" id="sp">'+prevSVG+'</button>'
+      +'<div style="flex:1;text-align:center;font-size:13px;font-weight:600">'+label+'</div>'
+      +'<button class="parr" id="sn"'+(statMonthOff>=0?' disabled':'')+'>'+nextSVG+'</button>'
+      +'</div>';
   }
+  if(statPeriod==='year'){
+    html+='<div style="display:flex;align-items:center;gap:7px;margin-bottom:12px">'
+      +'<button class="parr" id="syp"'+(statYear<=earliestYear?' disabled':'')+'>'+prevSVG+'</button>'
+      +'<div style="flex:1;text-align:center;font-size:13px;font-weight:600">'+statYear+'</div>'
+      +'<button class="parr" id="syn"'+(statYear>=thisYear?' disabled':'')+'>'+nextSVG+'</button>'
+      +'</div>';
+  }
+  if(statPeriod==='custom'){
+    html+='<div style="display:flex;align-items:center;gap:7px;margin-bottom:12px">'
+      +'<input type="date" class="fi" id="cs" value="'+statCustomS+'" style="flex:1;font-size:12px;color-scheme:dark"/>'
+      +'<span style="color:var(--t3);font-size:11px">→</span>'
+      +'<input type="date" class="fi" id="ce" value="'+statCustomE+'" style="flex:1;font-size:12px;color-scheme:dark"/>'
+      +'</div>';
+  }
+
+  el.innerHTML=html;
+
+  var viewSel=document.createElement('div');
+  viewSel.style.cssText='display:flex;gap:5px;margin-bottom:12px;overflow-x:auto;scrollbar-width:none;padding-bottom:2px';
+  viewSel.innerHTML=views.map(function(v){return'<button class="fc'+(statView===v?' on':'')+'" data-view="'+v+'" style="white-space:nowrap;text-transform:capitalize">'+v+'</button>';}).join('');
+  el.appendChild(viewSel);
+
+  var sc=document.createElement('div');sc.id='stat-content';el.appendChild(sc);
+
+  function rSC(){
+    sc.innerHTML='';
+    if(statView==='summary'){
+      var incomeExpDonut=donut([{c:'var(--green)',v:stats.income,n:'Income'},{c:'var(--red)',v:stats.expenses,n:'Expenses'}],fmt(stats.net),stats.net>=0?'surplus':'deficit','incexp');
+      var catDonut=bdItems.length>0?donut(bdItems.slice(0,6).map(function(b){var cat=getCat(b.id);return{c:cat.Colour,v:b.amt,n:cat.Name};}),fmt(expTotal),'spend','stat-cat'):'';
+      sc.innerHTML='<div class="sc2">'
+        +'<div class="sc"><div class="sc-l">Income</div><div class="sc-v pos">+'+fmt(stats.income)+'</div></div>'
+        +'<div class="sc"><div class="sc-l">Expenses</div><div class="sc-v red">-'+fmt(stats.expenses)+'</div></div>'
+        +'</div>'
+        +'<div class="sc2">'
+        +'<div class="sc"><div class="sc-l">Net</div><div class="sc-v '+(stats.net>=0?'pos':'neg')+'">'+(stats.net>=0?'+':'')+fmt(stats.net)+'</div></div>'
+        +'<div class="sc"><div class="sc-l">Savings rate</div><div class="sc-v '+(parseFloat(savRate)>=0?'pos':'neg')+'">'+savRate+'%</div></div>'
+        +'</div>'
+        +'<div class="sc2">'
+        +'<div class="sc"><div class="sc-l">Transactions</div><div class="sc-v">'+stats.filtered.length+'</div></div>'
+        +'</div>'
+        +(stats.income>0||stats.expenses>0?'<div class="sh" style="margin-top:6px"><span class="st">Income vs Expenses</span></div>'
+          +'<div class="card" style="padding:14px;text-align:center">'+incomeExpDonut+'</div>':'')
+        +(bdItems.length>0?'<div class="sh"><span class="st">Spending by category</span></div>'
+          +'<div class="card" style="padding:14px;text-align:center">'+catDonut
+          +bdItems.map(function(item){var cat=getCat(item.id);return'<div style="display:flex;align-items:center;gap:9px;padding:7px 0;border-bottom:1px solid var(--border2)">'
+            +'<div style="width:7px;height:7px;border-radius:50%;background:'+cat.Colour+';flex-shrink:0"></div>'
+            +'<div style="flex:1;font-size:12px;font-weight:500;text-align:left">'+cat.Name+'</div>'
+            +'<div style="font-size:12px;font-weight:700;font-family:var(--mono);color:var(--red)">-'+fmt(item.amt)+'</div>'
+            +'</div>';}).join('')+'</div>':'')
+        +(stats.filtered.length===0?'<div class="empty"><p>No data for '+label.toLowerCase()+'</p></div>':'');
+
+    } else if(statView==='income'){
+      var incTxs=stats.filtered.filter(function(t){return(t.type||'').toLowerCase()==='income';});
+      var byCatInc={};
+      incTxs.forEach(function(t){byCatInc[t.category]=(byCatInc[t.category]||0)+Math.abs(parseFloat(t.ref_currency_amount||t.amount)||0);});
+      var incItems=Object.entries(byCatInc).map(function(e){return{id:e[0],amt:e[1]};}).sort(function(a,b){return b.amt-a.amt;});
+      var incDonut=incItems.length>0?donut(incItems.slice(0,6).map(function(b){var cat=getCat(b.id);return{c:cat.Colour,v:b.amt,n:cat.Name};}),fmt(stats.income),'income','inc-cat'):'';
+      sc.innerHTML='<div class="sc2">'
+        +'<div class="sc"><div class="sc-l">Total income</div><div class="sc-v pos">+'+fmt(stats.income)+'</div></div>'
+        +'<div class="sc"><div class="sc-l">Transactions</div><div class="sc-v">'+incTxs.length+'</div></div>'
+        +'</div>'
+        +(incItems.length>0?'<div class="sh"><span class="st">Income by source — '+label+'</span></div>'
+          +'<div class="card" style="padding:14px;text-align:center">'+incDonut
+          +incItems.map(function(item){var cat=getCat(item.id);var pct=stats.income>0?((item.amt/stats.income)*100).toFixed(1):'0';
+            return'<div style="display:flex;align-items:center;gap:9px;padding:7px 0;border-bottom:1px solid var(--border2)">'
+              +'<div style="width:7px;height:7px;border-radius:50%;background:'+cat.Colour+';flex-shrink:0"></div>'
+              +'<div style="flex:1;font-size:12px;font-weight:500;text-align:left">'+cat.Name+'</div>'
+              +'<div style="font-size:11px;color:var(--t2);margin-right:6px">'+pct+'%</div>'
+              +'<div style="font-size:12px;font-weight:700;font-family:var(--mono);color:var(--green)">+'+fmt(item.amt)+'</div>'
+              +'</div>';}).join('')+'</div>':'<div class="empty"><p>No income for '+label+'</p></div>');
+
+    } else if(statView==='expenses'){
+      var expDonut2=bdItems.length>0?donut(bdItems.slice(0,6).map(function(b){var cat=getCat(b.id);return{c:cat.Colour,v:b.amt,n:cat.Name};}),fmt(expTotal),'spend','exp-cat'):'';
+      sc.innerHTML='<div class="sc2">'
+        +'<div class="sc"><div class="sc-l">Total expenses</div><div class="sc-v red">-'+fmt(stats.expenses)+'</div></div>'
+        +'<div class="sc"><div class="sc-l">Transactions</div><div class="sc-v">'+stats.filtered.filter(function(t){var ty=(t.type||'').toLowerCase();return ty==='expense'||ty==='expenses';}).length+'</div></div>'
+        +'</div>'
+        +(bdItems.length>0?'<div class="sh"><span class="st">By category — '+label+'</span></div>'
+          +'<div class="card" style="padding:14px;text-align:center">'+expDonut2
+          +bdItems.map(function(item){var cat=getCat(item.id);
+            return'<div style="display:flex;align-items:center;gap:9px;padding:7px 0;border-bottom:1px solid var(--border2)">'
+              +'<div style="width:7px;height:7px;border-radius:50%;background:'+cat.Colour+';flex-shrink:0"></div>'
+              +'<div style="flex:1;font-size:12px;font-weight:500;text-align:left">'+cat.Name+'</div>'
+              +'<div style="font-size:11px;color:var(--t2);margin-right:6px">'+item.pct.toFixed(1)+'%</div>'
+              +'<div style="font-size:12px;font-weight:700;font-family:var(--mono);color:var(--red)">-'+fmt(item.amt)+'</div>'
+              +'</div>';}).join('')+'</div>':'<div class="empty"><p>No expenses for '+label+'</p></div>');
+
+    } else if(statView==='net'){
+      sc.innerHTML='<div class="sc2">'
+        +'<div class="sc"><div class="sc-l">Net — '+label+'</div><div class="sc-v '+(stats.net>=0?'pos':'neg')+'">'+(stats.net>=0?'+':'')+fmt(stats.net)+'</div></div>'
+        +'<div class="sc"><div class="sc-l">vs income</div><div class="sc-v">'+(stats.income>0?((stats.net/stats.income)*100).toFixed(1):0)+'%</div></div>'
+        +'</div>'
+        +'<div class="sc2">'
+        +'<div class="sc"><div class="sc-l">Income</div><div class="sc-v pos">+'+fmt(stats.income)+'</div></div>'
+        +'<div class="sc"><div class="sc-l">Expenses</div><div class="sc-v red">-'+fmt(stats.expenses)+'</div></div>'
+        +'</div>';
+
+    } else if(statView==='savings'){
+      sc.innerHTML='<div class="sc2">'
+        +'<div class="sc"><div class="sc-l">Savings rate</div><div class="sc-v '+(parseFloat(savRate)>=0?'pos':'neg')+'">'+savRate+'%</div></div>'
+        +'<div class="sc"><div class="sc-l">Saved — '+label+'</div><div class="sc-v pos">+'+fmt(Math.max(0,stats.net))+'</div></div>'
+        +'</div>'
+        +'<div class="sc2">'
+        +'<div class="sc"><div class="sc-l">Income</div><div class="sc-v pos">+'+fmt(stats.income)+'</div></div>'
+        +'<div class="sc"><div class="sc-l">Spent</div><div class="sc-v red">-'+fmt(stats.expenses)+'</div></div>'
+        +'</div>';
+
+    } else if(statView==='balance'){
+      var balRows=ACCOUNTS.map(function(a){
+        var bal=getAccBal(a.ID);
+        var gbpBal=a.Currency==='GBP'?bal:a.Currency==='EUR'?bal*0.855:bal*0.787;
+        return{name:a.Name,symbol:a.Symbol,currency:a.Currency,bal:bal,gbpBal:gbpBal};
+      });
+      var totalGBP=balRows.reduce(function(s,a){return s+a.gbpBal;},0);
+      sc.innerHTML='<div class="sc" style="margin-bottom:8px">'
+        +'<div class="sc-l">Total balance (GBP equiv.)</div>'
+        +'<div class="sc-v '+(totalGBP>=0?'pos':'neg')+'">'+(totalGBP>=0?'+':'')+fmt(Math.abs(totalGBP))+'</div>'
+        +'</div>'
+        +balRows.map(function(a){
+          return'<div class="sc" style="margin-bottom:8px">'
+            +'<div style="display:flex;justify-content:space-between;margin-bottom:4px">'
+            +'<div class="sc-l">'+a.name+'</div>'
+            +'<div style="font-size:10px;color:var(--t2)">'+a.currency+'</div>'
+            +'</div>'
+            +'<div class="sc-v '+(a.bal>=0?'pos':'neg')+'">'+(a.bal>=0?'+':'')+fmt(Math.abs(a.bal),a.currency)+'</div>'
+            +(a.currency!=='GBP'?'<div style="font-size:10px;color:var(--t2);margin-top:3px">≈ '+fmt(Math.abs(a.gbpBal))+' GBP</div>':'')
+            +'</div>';
+        }).join('');
+    }
+    setTimeout(function(){document.querySelectorAll('.donut-seg').forEach(function(){});},50);
+  }
+
+  el.querySelectorAll('.pt2[data-per]').forEach(function(b){b.addEventListener('click',function(){statPeriod=b.dataset.per;renderStatistics(el);});});
+  document.getElementById('sp')&&document.getElementById('sp').addEventListener('click',function(){statMonthOff--;renderStatistics(el);});
+  document.getElementById('sn')&&document.getElementById('sn').addEventListener('click',function(){if(statMonthOff<0){statMonthOff++;renderStatistics(el);}});
+  document.getElementById('syp')&&document.getElementById('syp').addEventListener('click',function(){if(statYear>earliestYear){statYear--;renderStatistics(el);}});
+  document.getElementById('syn')&&document.getElementById('syn').addEventListener('click',function(){if(statYear<thisYear){statYear++;renderStatistics(el);}});
+  document.getElementById('cs')&&document.getElementById('cs').addEventListener('change',function(e){statCustomS=e.target.value;renderStatistics(el);});
+  document.getElementById('ce')&&document.getElementById('ce').addEventListener('change',function(e){statCustomE=e.target.value;renderStatistics(el);});
+  el.querySelectorAll('[data-view]').forEach(function(b){b.addEventListener('click',function(){
+    statView=b.dataset.view;
+    el.querySelectorAll('[data-view]').forEach(function(x){x.classList.remove('on');});
+    b.classList.add('on');
+    rSC();
+  });});
+  rSC();
+}
 
 function renderPlanning(el){
   var tab='planned';
