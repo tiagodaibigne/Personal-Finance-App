@@ -176,35 +176,23 @@ const fmt=(n,c='GBP')=>{const s={GBP:'£',EUR:'€',USD:'$'}[c]||c+' ';return s+
 const fmtDate=ds=>{const d=new Date(ds),t=new Date(),y=new Date(t);y.setDate(y.getDate()-1);if(d.toDateString()===t.toDateString())return'Today';if(d.toDateString()===y.toDateString())return'Yesterday';return d.toLocaleDateString('en-GB',{day:'numeric',month:'short',year:d.getFullYear()!==t.getFullYear()?'numeric':undefined});};
 const groupByDate=txs=>{const g={};txs.forEach(tx=>{const k=fmtDate(tx.date);if(!g[k])g[k]=[];g[k].push(tx);});return g;};
 const getCat=function(rawId){
-  if(!rawId)return{ID:'cat_other',Name:'Other',Icon:'other',Colour:'#3a4a5a'};
+  if(!rawId)return{ID:'General Out',Name:'General Out',Icon:'other',Colour:'#3a4a5a'};
   var all=[].concat(CATS.expense,CATS.income);
-  // 1. Direct ID match
-  var byId=all.find(function(c){return c.ID===rawId;});
-  if(byId)return byId;
-  // 2. BB_CAT_MAP: map BB name to internal ID, then look up
-  var mapped=BB_CAT_MAP[rawId.toLowerCase().trim()];
-  if(mapped){
-    var byMapped=all.find(function(c){return c.ID===mapped;});
-    if(byMapped)return byMapped;
-    // Return with display name from BB_DISPLAY even if not in Categories sheet
-    return{ID:mapped,Name:BB_DISPLAY[mapped]||mapped,Icon:mapped.replace('cat_',''),Colour:CAT_COLOUR_MAP[mapped]||'#4672c4'};
-  }
-  // 3. Name match (case-insensitive)
-  var byName=all.find(function(c){return c.Name.toLowerCase()===rawId.toLowerCase().trim();});
+  // 1. Direct ID match (ID = Name in new system)
+  var direct=all.find(function(c){return c.ID===rawId;});
+  if(direct)return direct;
+  // 2. Case-insensitive name match
+  var lower=rawId.toLowerCase().trim();
+  var byName=all.find(function(c){return c.Name.toLowerCase()===lower;});
   if(byName)return byName;
-  // 4. Return raw name cleaned up (capitalise first letter)
-  var clean=rawId.charAt(0).toUpperCase()+rawId.slice(1);
-  return{ID:rawId,Name:clean,Icon:'other',Colour:'#3a4a5a'};
-};
-
-// Colour map for categories that might not be in sheet
-const CAT_COLOUR_MAP={
-  'cat_food':'#a87838','cat_coffee':'#8a5a38','cat_trans':'#7258a8',
-  'cat_shop':'#a85868','cat_bills':'#a87838','cat_health':'#a84848',
-  'cat_entert':'#2e7a72','cat_travel':'#4672c4','cat_fitness':'#3d9468',
-  'cat_home':'#58728a','cat_family':'#6e8a38','cat_edu':'#7258a8',
-  'cat_other':'#3a4a5a','cat_salary':'#3d9468','cat_free':'#6e8a38',
-  'cat_invest':'#2e7a72','cat_other_i':'#4672c4',
+  // 3. Legacy: old internal IDs like cat_food
+  var legacyName=BB_CAT_MAP[rawId]||BB_CAT_MAP[lower];
+  if(legacyName){
+    var byLegacy=all.find(function(c){return c.ID===legacyName||c.Name===legacyName;});
+    if(byLegacy)return byLegacy;
+  }
+  // 4. Not found — return raw name as display (graceful fallback)
+  return{ID:rawId,Name:rawId,Icon:'other',Colour:'#5a6a7a'};
 };
 const getAcc=function(id){
   if(!id)return{Name:'Unknown',Symbol:'?',Currency:'GBP',ID:''};
@@ -241,7 +229,45 @@ function signIn(){tokenClient.requestAccessToken({prompt:''});}
 function signOut(){const t=gapi.client.getToken();if(t)google.accounts.oauth2.revoke(t.access_token);gapi.client.setToken(null);localStorage.removeItem('finance_token_exp');localStorage.removeItem('finance_sheet_id');location.reload();}
 async function getOrCreateSheet(){const cached=localStorage.getItem('finance_sheet_id');if(cached){sheetId=cached;return;}const res=await gapi.client.drive.files.list({q:`name='${SHEET_NAME}' and mimeType='application/vnd.google-apps.spreadsheet' and trashed=false`,fields:'files(id)'});if(res.result.files?.length>0){sheetId=res.result.files[0].id;}else{const cr=await gapi.client.sheets.spreadsheets.create({resource:{properties:{title:SHEET_NAME},sheets:['Transactions','Accounts','Categories','PlannedPayments','Budgets','ExchangeRates','Settings'].map(title=>({properties:{title}}))}});sheetId=cr.result.spreadsheetId;await initSheetHeaders();await seedDefaults();}localStorage.setItem('finance_sheet_id',sheetId);}
 async function initSheetHeaders(){await batchUpdate([{range:'Transactions!A1',values:[TX_HEADERS]},{range:'Accounts!A1',values:[['ID','Name','Symbol','Currency','InitialBalance','Colour','Active','CreatedAt']]},{range:'Categories!A1',values:[['ID','Name','Type','Icon','Colour','Labels','Active']]},{range:'PlannedPayments!A1',values:[['ID','Name','Amount','Currency','Category','Account','Frequency','NextDate','Payee','Active','Notes']]},{range:'Budgets!A1',values:[['ID','Category','Monthly','Yearly','Currency','Active']]},{range:'ExchangeRates!A1',values:[['Date','Base','Target','Rate']]},{range:'Settings!A1',values:[['Key','Value']]}]);}
-async function seedDefaults(){const now=new Date().toISOString();const accs=[['acc_gbp','£ Sterling','£','GBP','0','#4672c4','TRUE',now],['acc_eur','€ Euro','€','EUR','0','#2e7a72','TRUE',now]];const cats=[['cat_food','Food & Drink','expense','food','#a87838','groceries,food','TRUE'],['cat_coffee','Coffee','expense','coffee','#8a5a38','coffee,morning','TRUE'],['cat_trans','Transport','expense','trans','#7258a8','commute,transport','TRUE'],['cat_shop','Shopping','expense','shop','#a85868','shopping,clothes','TRUE'],['cat_bills','Bills','expense','bills','#a87838','rent,utilities','TRUE'],['cat_health','Health','expense','health','#a84848','health,pharmacy','TRUE'],['cat_entert','Entertainment','expense','entert','#2e7a72','subscription','TRUE'],['cat_travel','Travel','expense','travel','#4672c4','travel,flights','TRUE'],['cat_fitness','Fitness','expense','run','#3d9468','running,sport','TRUE'],['cat_home','Home','expense','home','#58728a','home','TRUE'],['cat_family','Family','expense','family','#6e8a38','family','TRUE'],['cat_edu','Education','expense','edu','#7258a8','education','TRUE'],['cat_other','Other','expense','other','#3a4a5a','','TRUE'],['cat_salary','Salary','income','salary','#3d9468','salary','TRUE'],['cat_free','Freelance','income','freelance','#6e8a38','freelance','TRUE'],['cat_invest','Investment','income','invest','#2e7a72','investment','TRUE'],['cat_other_i','Other Income','income','other','#4672c4','','TRUE']];await batchUpdate([{range:'Accounts!A2',values:accs},{range:'Categories!A2',values:cats},{range:'Settings!A2',values:[['base_currency','GBP'],['created_at',now],['version','3.0.0']]}]);}
+async function seedDefaults(){const now=new Date().toISOString();const accs=[
+  ['£','£ Sterling','£','GBP','0','#4672c4','TRUE',now],
+  ['€','€ Euro','€','EUR','0','#2e7a72','TRUE',now],
+  ['Map2Growth','Map2Growth','£','GBP','0','#7258a8','TRUE',now],
+];const cats=[
+    ['Eating Out','Eating Out','expense','food','#a87838','','TRUE'],
+    ['Groceries','Groceries','expense','food','#9e7030','','TRUE'],
+    ['Coffee','Coffee','expense','coffee','#8a5a38','','TRUE'],
+    ['Transport','Transport','expense','trans','#7258a8','','TRUE'],
+    ['Shopping','Shopping','expense','shop','#a85868','','TRUE'],
+    ['Bill & Services','Bill & Services','expense','bills','#a87838','','TRUE'],
+    ['Health','Health','expense','health','#a84848','','TRUE'],
+    ['Entertainment','Entertainment','expense','entert','#2e7a72','','TRUE'],
+    ['Travel','Travel','expense','travel','#4672c4','','TRUE'],
+    ['Fitness','Fitness','expense','run','#3d9468','','TRUE'],
+    ['Home','Home','expense','home','#58728a','','TRUE'],
+    ['Family','Family','expense','family','#6e8a38','','TRUE'],
+    ['Baby','Baby','expense','family','#7a9438','','TRUE'],
+    ['Education','Education','expense','edu','#7258a8','','TRUE'],
+    ['Gambling','Gambling','expense','other','#a84848','','TRUE'],
+    ['Rent','Rent','expense','bills','#b87038','','TRUE'],
+    ['Mortgage','Mortgage','expense','bills','#a86030','','TRUE'],
+    ['General Out','General Out','expense','other','#5a6a7a','','TRUE'],
+    ['Tax Out','Tax Out','expense','other','#6a5a8a','','TRUE'],
+    ['Brokerage Out','Brokerage Out','expense','invest','#2e7a72','','TRUE'],
+    ['Investments Out','Investments Out','expense','invest','#3a8a62','','TRUE'],
+    ['Navblue Out','Navblue Out','expense','other','#4a5a6a','','TRUE'],
+    ['Collins Out','Collins Out','expense','other','#3a4a5a','','TRUE'],
+    ['M2G Out','M2G Out','expense','other','#5a6870','','TRUE'],
+    ['Loss','Loss','expense','other','#8a4848','','TRUE'],
+    ['Savings','Savings','expense','other_i','#4a7a8a','','TRUE'],
+    ['Collins In','Collins In','income','salary','#3d9468','','TRUE'],
+    ['Navblue In','Navblue In','income','salary','#4aaa78','','TRUE'],
+    ['General In','General In','income','other','#4a9e72','','TRUE'],
+    ['Investments In','Investments In','income','invest','#2e7a72','','TRUE'],
+    ['Brokerage In','Brokerage In','income','invest','#3a8a82','','TRUE'],
+    ['Tax In','Tax In','income','other','#6a88b8','','TRUE'],
+    ['TRANSFER','TRANSFER','transfer','transfer','#4672c4','','TRUE'],
+  ];await batchUpdate([{range:'Accounts!A2',values:accs},{range:'Categories!A2',values:cats},{range:'Settings!A2',values:[['base_currency','GBP'],['created_at',now],['version','3.0.0']]}]);}
 async function batchUpdate(data){await gapi.client.sheets.spreadsheets.values.batchUpdate({spreadsheetId:sheetId,resource:{valueInputOption:'RAW',data}});}
 async function readSheet(tab){const r=await gapi.client.sheets.spreadsheets.values.get({spreadsheetId:sheetId,range:tab});return r.result.values||[];}
 function rowsToObjects(rows){if(!rows||rows.length<2)return[];const h=rows[0];return rows.slice(1).map(row=>{const o={};h.forEach((k,i)=>o[k]=row[i]??'');return o;});}
@@ -249,32 +275,17 @@ async function appendRow(tab,values){await gapi.client.sheets.spreadsheets.value
 // ── BudgetBakers compatibility map ───────────────────────────────────────────
 // Maps BudgetBakers category names → internal category IDs
 // Add your own mappings here if needed
-// BB_CAT_MAP: maps BudgetBakers category names to internal IDs
+// BB_CAT_MAP: legacy fallback only — new system uses names as IDs directly
+// Only needed for very old data that might have internal IDs
 const BB_CAT_MAP={
-  'baby':'cat_family','bill & services':'cat_bills','bills & services':'cat_bills',
-  'brokerage in':'cat_invest','brokerage out':'cat_invest',
-  'collins in':'cat_salary','collins':'cat_salary','collins out':'cat_other',
-  'navblue in':'cat_salary','navblue out':'cat_other',
-  'eating out':'cat_food','groceries':'cat_food','food & drink':'cat_food',
-  'education':'cat_edu','gambling':'cat_other',
-  'general in':'cat_other_i','general out':'cat_other',
-  'health':'cat_health','investments in':'cat_invest','investments out':'cat_invest',
-  'loss':'cat_other','m2g out':'cat_other',
-  'mortgage':'cat_bills','rent':'cat_bills',
-  'savings':'cat_other_i','shopping':'cat_shop',
-  'tax in':'cat_other_i','tax out':'cat_other',
-  'transport':'cat_trans','transfer':'cat_other',
+  'cat_food':'Eating Out','cat_bills':'Bill & Services','cat_shop':'Shopping',
+  'cat_trans':'Transport','cat_health':'Health','cat_entert':'Entertainment',
+  'cat_travel':'Travel','cat_fitness':'Fitness','cat_home':'Home',
+  'cat_family':'Family','cat_edu':'Education','cat_other':'General Out',
+  'cat_salary':'Collins In','cat_free':'Freelance','cat_invest':'Investments In',
+  'cat_other_i':'General In','cat_coffee':'Coffee',
 };
-
-// BB_DISPLAY: human-readable names for each internal category ID
-const BB_DISPLAY={
-  'cat_food':'Food & Drink','cat_coffee':'Coffee','cat_trans':'Transport',
-  'cat_shop':'Shopping','cat_bills':'Bills & Services','cat_health':'Health',
-  'cat_entert':'Entertainment','cat_travel':'Travel','cat_fitness':'Fitness',
-  'cat_home':'Home','cat_family':'Family','cat_edu':'Education',
-  'cat_other':'Other','cat_salary':'Salary','cat_free':'Freelance',
-  'cat_invest':'Investment','cat_other_i':'Other Income',
-};
+const BB_DISPLAY=BB_CAT_MAP;
 // Maps BudgetBakers account names → internal account IDs
 const BB_ACC_MAP={
   '£':'acc_gbp','gbp':'acc_gbp',
@@ -304,7 +315,7 @@ function normaliseTx(tx){
 
   // ── Column A: account — map symbols/names to internal IDs ─────────────────
   const accKey=(tx.account||'').toLowerCase().trim();
-  // Keep account raw value (£, €, Map2Growth etc) — getAcc resolves by symbol/name
+  // Account kept as raw BudgetBakers value (£, €, Map2Growth) — matches Accounts tab IDs
 
   // ── Column B: category — map BudgetBakers names to internal IDs ───────────
   const catKey=(tx.category||'').toLowerCase().trim();
@@ -365,21 +376,23 @@ function getCatIcon(cat,col){
     'transfer':'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="'+col+'" stroke-width="1.8" stroke-linecap="round"><polyline points="17,1 21,5 17,9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7,23 3,19 7,15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>',
   };
   // Also match by category Name for BudgetBakers imports
+  // Map category names (which are now IDs) to icon keys
   var nameMap={
-    'eating out':'cat_food','groceries':'cat_food','food & drink':'cat_food',
-    'bills & services':'cat_bills','bill & services':'cat_bills','bills':'cat_bills',
+    'eating out':'cat_food','groceries':'cat_food','food & drink':'cat_food','coffee':'cat_coffee',
+    'bill & services':'cat_bills','bills & services':'cat_bills','rent':'cat_bills','mortgage':'cat_bills',
     'shopping':'cat_shop','transport':'cat_trans','health':'cat_health',
     'entertainment':'cat_entert','travel':'cat_travel','fitness':'cat_fitness',
-    'family':'cat_family','baby':'cat_family','home':'cat_home',
-    'salary':'cat_salary','collins in':'cat_salary','navblue in':'cat_salary',
-    'investment':'cat_invest','investments in':'cat_invest','investments out':'cat_invest',
+    'family':'cat_family','baby':'cat_family','home':'cat_home','education':'cat_edu',
+    'collins in':'cat_salary','navblue in':'cat_salary','salary':'cat_salary','freelance':'cat_free',
+    'investments in':'cat_invest','investments out':'cat_invest',
     'brokerage in':'cat_invest','brokerage out':'cat_invest',
-    'freelance':'cat_free','education':'cat_edu','savings':'cat_other_i',
-    'general in':'cat_other_i','tax in':'cat_other_i',
-    'rent':'cat_bills','mortgage':'cat_bills',
+    'savings':'cat_other_i','general in':'cat_other_i','tax in':'cat_other_i',
+    'general out':'cat_other','tax out':'cat_other','gambling':'cat_other',
+    'loss':'cat_other','m2g out':'cat_other','navblue out':'cat_other',
+    'collins out':'cat_other','transfer':'transfer',
   };
-  var rawName=(cat.Name||'').toLowerCase();
-  var iconKey=cat.ID||(nameMap[rawName])||(BB_CAT_MAP[rawName]);
+  var rawName=(cat.Name||cat.ID||'').toLowerCase();
+  var iconKey=nameMap[rawName]||nameMap[(cat.ID||'').toLowerCase()]||'cat_other';
   var svg=icons[iconKey]||'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="'+col+'" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>';
   return svg;
 }
@@ -744,49 +757,58 @@ function openCatMapper(){
 
 
 async function repairCategoriesInSheet(){
-  // Get current categories from sheet
   var rows=await readSheet('Categories');
-  var existing=rows.slice(1).map(function(r){return(r[0]||'').toLowerCase();});
-  // Full list of categories to ensure exist in sheet
+  var existing=rows.slice(1).map(function(r){return r[0]||'';});
   var needed=[
-    ['cat_food','Food & Drink','expense','food','#a87838','groceries,food,eating out','TRUE'],
-    ['cat_coffee','Coffee','expense','coffee','#8a5a38','coffee,morning','TRUE'],
-    ['cat_trans','Transport','expense','trans','#7258a8','commute,transport','TRUE'],
-    ['cat_shop','Shopping','expense','shop','#a85868','shopping,clothes','TRUE'],
-    ['cat_bills','Bills & Services','expense','bills','#a87838','rent,utilities,bills','TRUE'],
-    ['cat_health','Health','expense','health','#a84848','health,pharmacy','TRUE'],
-    ['cat_entert','Entertainment','expense','entert','#2e7a72','subscription,entertainment','TRUE'],
-    ['cat_travel','Travel','expense','travel','#4672c4','travel,flights','TRUE'],
-    ['cat_fitness','Fitness','expense','run','#3d9468','running,sport,fitness','TRUE'],
-    ['cat_home','Home','expense','home','#58728a','home,furniture','TRUE'],
-    ['cat_family','Family','expense','family','#6e8a38','family,baby','TRUE'],
-    ['cat_edu','Education','expense','edu','#7258a8','education,books','TRUE'],
-    ['cat_other','Other','expense','other','#3a4a5a','other,general out,gambling,loss,m2g out,tax out,navblue out,collins out','TRUE'],
-    ['cat_salary','Salary','income','salary','#3d9468','salary,collins in,navblue in','TRUE'],
-    ['cat_free','Freelance','income','freelance','#6e8a38','freelance','TRUE'],
-    ['cat_invest','Investment','income','invest','#2e7a72','investment,investments in,brokerage in','TRUE'],
-    ['cat_other_i','Other Income','income','other','#4672c4','savings,general in,tax in,investments out,brokerage out','TRUE'],
+    ['Eating Out','Eating Out','expense','food','#a87838','','TRUE'],
+    ['Groceries','Groceries','expense','food','#9e7030','','TRUE'],
+    ['Coffee','Coffee','expense','coffee','#8a5a38','','TRUE'],
+    ['Transport','Transport','expense','trans','#7258a8','','TRUE'],
+    ['Shopping','Shopping','expense','shop','#a85868','','TRUE'],
+    ['Bill & Services','Bill & Services','expense','bills','#a87838','','TRUE'],
+    ['Health','Health','expense','health','#a84848','','TRUE'],
+    ['Entertainment','Entertainment','expense','entert','#2e7a72','','TRUE'],
+    ['Travel','Travel','expense','travel','#4672c4','','TRUE'],
+    ['Fitness','Fitness','expense','run','#3d9468','','TRUE'],
+    ['Home','Home','expense','home','#58728a','','TRUE'],
+    ['Family','Family','expense','family','#6e8a38','','TRUE'],
+    ['Baby','Baby','expense','family','#7a9438','','TRUE'],
+    ['Education','Education','expense','edu','#7258a8','','TRUE'],
+    ['Gambling','Gambling','expense','other','#a84848','','TRUE'],
+    ['Rent','Rent','expense','bills','#b87038','','TRUE'],
+    ['Mortgage','Mortgage','expense','bills','#a86030','','TRUE'],
+    ['General Out','General Out','expense','other','#5a6a7a','','TRUE'],
+    ['Tax Out','Tax Out','expense','other','#6a5a8a','','TRUE'],
+    ['Brokerage Out','Brokerage Out','expense','invest','#2e7a72','','TRUE'],
+    ['Investments Out','Investments Out','expense','invest','#3a8a62','','TRUE'],
+    ['Navblue Out','Navblue Out','expense','other','#4a5a6a','','TRUE'],
+    ['Collins Out','Collins Out','expense','other','#3a4a5a','','TRUE'],
+    ['M2G Out','M2G Out','expense','other','#5a6870','','TRUE'],
+    ['Loss','Loss','expense','other','#8a4848','','TRUE'],
+    ['Savings','Savings','expense','other_i','#4a7a8a','','TRUE'],
+    ['Collins In','Collins In','income','salary','#3d9468','','TRUE'],
+    ['Navblue In','Navblue In','income','salary','#4aaa78','','TRUE'],
+    ['General In','General In','income','other','#4a9e72','','TRUE'],
+    ['Investments In','Investments In','income','invest','#2e7a72','','TRUE'],
+    ['Brokerage In','Brokerage In','income','invest','#3a8a82','','TRUE'],
+    ['Tax In','Tax In','income','other','#6a88b8','','TRUE'],
+    ['TRANSFER','TRANSFER','transfer','transfer','#4672c4','','TRUE'],
   ];
-  var toAdd=needed.filter(function(row){return!existing.includes(row[0].toLowerCase());});
-  if(toAdd.length>0){
-    for(var i=0;i<toAdd.length;i++){
-      await appendRow('Categories',toAdd[i]);
-    }
-    console.log('Added '+toAdd.length+' missing categories to sheet');
-  }
-  // Also update display names for existing ones to be clean
-  // (sheets might have old "Bills" instead of "Bills & Services")
-  var updateData=[];
-  rows.forEach(function(row,idx){
-    if(idx===0)return;
-    var id=row[0];
-    var nameMap2={'cat_bills':'Bills & Services','cat_food':'Food & Drink'};
-    if(nameMap2[id]&&row[1]!==nameMap2[id]){
-      updateData.push({range:'Categories!B'+(idx+1),values:[[nameMap2[id]]]});
-    }
+  var toAdd=needed.filter(function(row){
+    return!existing.find(function(e){return e===row[0];});
   });
-  if(updateData.length>0){
-    await batchUpdate(updateData);
+  for(var i=0;i<toAdd.length;i++){await appendRow('Categories',toAdd[i]);}
+  var accRows=await readSheet('Accounts');
+  var accIds=accRows.slice(1).map(function(r){return r[0]||'';});
+  var neededAccs=[
+    ['£','£ Sterling','£','GBP','0','#4672c4','TRUE',new Date().toISOString()],
+    ['€','€ Euro','€','EUR','0','#2e7a72','TRUE',new Date().toISOString()],
+    ['Map2Growth','Map2Growth','£','GBP','0','#7258a8','TRUE',new Date().toISOString()],
+  ];
+  var accsToAdd=neededAccs.filter(function(r){return!accIds.includes(r[0]);});
+  for(var i=0;i<accsToAdd.length;i++){await appendRow('Accounts',accsToAdd[i]);}
+  if(toAdd.length>0||accsToAdd.length>0){
+    console.log('Repaired: '+toAdd.length+' categories, '+accsToAdd.length+' accounts');
   }
 }
 
