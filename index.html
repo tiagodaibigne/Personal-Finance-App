@@ -217,14 +217,28 @@ const getStats=(txs,s,e)=>{
 };
 
 function getAccBal(accId){
+  // Balance is summed in the account's NATIVE currency using column D (amount)
+  // NOT ref_currency_amount (which is the GBP-equivalent for cross-currency stats)
   var acc=ACCOUNTS.find(function(a){return a.ID===accId;});
   var init=parseFloat((acc&&acc.InitialBalance)||0);
-  // Sum ALL transactions for this account including transfers
-  // ref_currency_amount is already signed: negative=out, positive=in
   var total=TX.filter(function(tx){return tx.account===accId;})
     .reduce(function(sum,tx){
-      var val=parseFloat(tx.ref_currency_amount||tx.amount||0);
+      // Use native amount (column D), already signed by normaliseTx
+      var val=parseFloat(tx.amount)||0;
       return sum+val;
+    },0);
+  return init+total;
+}
+// GBP-equivalent balance for an account (used for cross-currency totals)
+function getAccBalGBP(accId){
+  var acc=ACCOUNTS.find(function(a){return a.ID===accId;});
+  var init=parseFloat((acc&&acc.InitialBalance)||0);
+  var total=TX.filter(function(tx){return tx.account===accId;})
+    .reduce(function(sum,tx){
+      // Use ref_currency_amount (GBP equivalent), already signed
+      var ref=parseFloat(tx.ref_currency_amount);
+      if(isNaN(ref)) ref=parseFloat(tx.amount)||0;
+      return sum+ref;
     },0);
   return init+total;
 }
@@ -279,7 +293,7 @@ async function initSheetHeaders(){await batchUpdate([{range:'Transactions!A1',va
 async function seedDefaults(){const now=new Date().toISOString();const accs=[
   ['£','£ Sterling','£','GBP','0','#4672c4','TRUE',now],
   ['€','€ Euro','€','EUR','0','#2e7a72','TRUE',now],
-  ['Map2Growth','Map2Growth','£','GBP','0','#7258a8','TRUE',now],
+  ['Map2Growth','Map2Growth','€','EUR','0','#7258a8','TRUE',now],
 ];const cats=[
     ['Eating Out','Eating Out','expense','food','#a87838','','TRUE'],
     ['Groceries','Groceries','expense','food','#9e7030','','TRUE'],
@@ -696,8 +710,8 @@ function renderStatistics(el){
 
     } else if(statView==='balance'){
       var balRows=ACCOUNTS.map(function(a){
-        var bal=getAccBal(a.ID);
-        var gbpBal=a.Currency==='GBP'?bal:a.Currency==='EUR'?bal*0.855:bal*0.787;
+        var bal=getAccBal(a.ID);          // native currency
+        var gbpBal=getAccBalGBP(a.ID);    // GBP equivalent from ref_currency_amount
         return{name:a.Name,symbol:a.Symbol,currency:a.Currency,bal:bal,gbpBal:gbpBal};
       });
       var totalGBP=balRows.reduce(function(s,a){return s+a.gbpBal;},0);
@@ -1357,7 +1371,7 @@ async function repairCategoriesInSheet(){
     ['ID','Name','Symbol','Currency','InitialBalance','Colour','Active','CreatedAt'],
     ['£','£ Sterling','£','GBP','0','#4672c4','TRUE',new Date().toISOString()],
     ['€','€ Euro','€','EUR','0','#2e7a72','TRUE',new Date().toISOString()],
-    ['Map2Growth','Map2Growth','£','GBP','0','#7258a8','TRUE',new Date().toISOString()],
+    ['Map2Growth','Map2Growth','€','EUR','0','#7258a8','TRUE',new Date().toISOString()],
   ];
 
   try{
