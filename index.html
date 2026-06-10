@@ -527,7 +527,7 @@ return`<div class="tx" data-txidx="${_idx}"><div class="tx-ico" style="backgroun
 function donut(slices,val,sub){const R=65,cx=75,cy=75,sw=12,circ=2*Math.PI*R;const total=slices.reduce((a,s)=>a+s.v,0);if(!total)return`<div class="donut-wrap" style="opacity:.25"><svg viewBox="0 0 150 150" width="150" height="150"><circle cx="${cx}" cy="${cy}" r="${R}" fill="none" stroke="#181818" stroke-width="${sw}"/></svg><div class="donut-center"><div class="donut-val">—</div><div class="donut-sub">${sub}</div></div></div>`;let off=0;const paths=slices.map(s=>{const l=Math.max(0,(s.v/total)*circ-1.5);const p=`<circle cx="${cx}" cy="${cy}" r="${R}" fill="none" stroke="${s.c}" stroke-width="${sw}" stroke-dasharray="${l} ${circ}" stroke-dashoffset="${-off}" stroke-linecap="round"/>`;off+=(s.v/total)*circ;return p;}).join('');return`<div class="donut-wrap"><svg viewBox="0 0 150 150" width="150" height="150" style="transform:rotate(-90deg)"><circle cx="${cx}" cy="${cy}" r="${R}" fill="none" stroke="#181818" stroke-width="${sw}"/>${paths}</svg><div class="donut-center"><div class="donut-val">${val}</div><div class="donut-sub">${sub}</div></div></div>`;}
 function lineChart(pts,col){if(!pts||pts.length<2)return`<div class="chart-wrap" style="display:flex;align-items:center;justify-content:center;color:var(--t2);font-size:11px">No data yet</div>`;const W=360,H=86,pt=8,pb=20,pl=4,pr=4;const vals=pts.map(p=>p.v),mn=Math.min(...vals),mx=Math.max(...vals),rng=mx-mn||1;const xy=pts.map((p,i)=>({x:pl+(i/(pts.length-1))*(W-pl-pr),y:pt+(1-(p.v-mn)/rng)*(H-pt-pb),l:p.l,v:p.v}));const d=xy.map((p,i)=>`${i===0?'M':'L'}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');const area=d+` L${xy[xy.length-1].x.toFixed(1)},${H-pb} L${xy[0].x.toFixed(1)},${H-pb} Z`;const labels=xy.filter((_,i)=>i%Math.ceil(xy.length/5)===0||i===xy.length-1).map(p=>`<text x="${p.x.toFixed(1)}" y="${H}" fill="#333" font-size="9" text-anchor="middle" font-family="DM Sans,sans-serif">${p.l}</text>`).join('');return`<div class="chart-wrap"><svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" style="width:100%;height:100%"><defs><linearGradient id="lg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="${col}" stop-opacity=".15"/><stop offset="100%" stop-color="${col}" stop-opacity="0"/></linearGradient></defs><path d="${area}" fill="url(#lg)"/><path d="${d}" fill="none" stroke="${col}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>${xy.map(p=>`<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="2.5" fill="${col}" opacity=".7"/>`).join('')}${labels}</svg></div>`;}
 function buildSeries(type,months=12){const now=new Date(),pts=[];for(let i=-(months-1);i<=0;i++){const s=new Date(now.getFullYear(),now.getMonth()+i,1),e=new Date(now.getFullYear(),now.getMonth()+i+1,0);const st=getStats(TX,s,e),lbl=s.toLocaleDateString('en-GB',{month:'short'});pts.push({l:lbl,v:type==='income'?st.income:type==='expenses'?st.expenses:type==='net'?st.net:st.income>0?(st.net/st.income*100):0});}return pts;}
-function renderDashboard(el){const now=new Date();const s=new Date(now.getFullYear(),now.getMonth(),1),e=new Date(now.getFullYear(),now.getMonth()+1,0);const stats=getStats(TX,s,e);const mn=now.toLocaleDateString('en-GB',{month:'long',year:'numeric'});const byCat={};stats.filtered.filter(t=>(t.type||'').toLowerCase()==='expense').forEach(t=>{byCat[t.category]=(byCat[t.category]||0)+Math.abs(parseFloat(t.ref_currency_amount||t.amount)||0);});const expTotal=Object.values(byCat).reduce((a,v)=>a+v,0);const topExp=Object.entries(byCat).sort((a,b)=>b[1]-a[1]).slice(0,8);const today=new Date();const _td=new Date();_td.setHours(0,0,0,0);const upPlan=PLANNED.slice(0,4).map(p=>{const d=new Date((p.NextDate||'').substring(0,10)+'T00:00:00');return{...p,days:Math.round((d-_td)/86400000)};});el.innerHTML=`<div class="ph"><h1 class="pt">Dashboard</h1><div class="hbtns"><button class="hbtn" id="dash-notif"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>${upPlan.some(p=>p.days<=3)?'<div class="badge"></div>':''}</button><button class="hbtn" id="dash-settings"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button></div></div><div class="acc-grid">${ACCOUNTS.map(a=>{const b=getAccBal(a.ID,a.Currency);return`<div class="acc-card"><div><div class="acc-name" style="font-size:13px;font-weight:600;color:var(--t1);margin-bottom:6px">${a.Name}</div><div class="acc-sym" style="background:${a.Colour}18;color:${a.Colour};width:26px;height:26px;border-radius:8px;font-size:13px;font-weight:600;display:flex;align-items:center;justify-content:center">${a.Symbol}</div></div><div class="acc-bal" style="color:${b<0?'var(--red)':'var(--t1)'}">${b<0?'-':''}${fmt(Math.abs(b),a.Currency)}</div></div>`;}).join('')}<div class="acc-card add" id="dash-add-acc" style="cursor:pointer"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Add account</div></div><div class="cf-card"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px"><span style="font-size:10px;font-weight:600;color:var(--t2);text-transform:uppercase;letter-spacing:.7px">Cash Flow</span><span style="font-size:10px;color:var(--t3)">${mn}</span></div><div style="font-size:34px;font-weight:800;font-family:var(--mono);letter-spacing:-.06em;margin-bottom:16px;color:${stats.net>=0?'var(--green)':'var(--red)'}">${stats.net>=0?'+':''}${fmt(stats.net)}</div><div style="margin-bottom:9px"><div style="display:flex;justify-content:space-between;margin-bottom:5px"><span style="font-size:12px;color:var(--t2)">Income</span><span style="font-size:14px;font-weight:700;font-family:var(--mono);color:var(--green)">${fmt(stats.income)}</span></div><div style="height:12px;background:rgba(61,148,104,.15);border-radius:99px"><div style="height:100%;width:100%;background:var(--green);border-radius:99px"></div></div></div><div><div style="display:flex;justify-content:space-between;margin-bottom:5px"><span style="font-size:12px;color:var(--t2)">Expenses</span><span style="font-size:14px;font-weight:700;font-family:var(--mono);color:var(--red)">${fmt(stats.expenses)}</span></div><div style="height:12px;background:rgba(168,72,72,.12);border-radius:99px"><div style="height:100%;width:${stats.income>0?Math.min(stats.expenses/stats.income*100,100):0}%;background:var(--red);border-radius:99px"></div></div></div></div>${(function(){
+function renderDashboard(el){const now=new Date();const s=new Date(now.getFullYear(),now.getMonth(),1),e=new Date(now.getFullYear(),now.getMonth()+1,0);const stats=getStats(TX,s,e);const mn=now.toLocaleDateString('en-GB',{month:'long',year:'numeric'});const byCat={};stats.filtered.filter(t=>(t.type||'').toLowerCase()==='expense').forEach(t=>{byCat[t.category]=(byCat[t.category]||0)+Math.abs(parseFloat(t.ref_currency_amount||t.amount)||0);});const expTotal=Object.values(byCat).reduce((a,v)=>a+v,0);const topExp=Object.entries(byCat).sort((a,b)=>b[1]-a[1]).slice(0,8);const today=new Date();const _td=new Date();_td.setHours(0,0,0,0);const upPlan=PLANNED.map(p=>{const d=new Date((p.NextDate||'').substring(0,10)+'T00:00:00');return{...p,days:Math.round((d-_td)/86400000)};}).filter(p=>p.days>=-7).sort((a,b)=>a.days-b.days).slice(0,5);el.innerHTML=`<div class="ph"><h1 class="pt">Dashboard</h1><div class="hbtns"><button class="hbtn" id="dash-notif"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>${upPlan.some(p=>p.days<=3)?'<div class="badge"></div>':''}</button><button class="hbtn" id="dash-settings"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button></div></div><div class="acc-grid">${ACCOUNTS.map(a=>{const b=getAccBal(a.ID,a.Currency);return`<div class="acc-card"><div><div class="acc-name" style="font-size:13px;font-weight:600;color:var(--t1);margin-bottom:6px">${a.Name}</div><div class="acc-sym" style="background:${a.Colour}18;color:${a.Colour};width:26px;height:26px;border-radius:8px;font-size:13px;font-weight:600;display:flex;align-items:center;justify-content:center">${a.Symbol}</div></div><div class="acc-bal" style="color:${b<0?'var(--red)':'var(--t1)'}">${b<0?'-':''}${fmt(Math.abs(b),a.Currency)}</div></div>`;}).join('')}<div class="acc-card add" id="dash-add-acc" style="cursor:pointer"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Add account</div></div><div class="cf-card"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px"><span style="font-size:10px;font-weight:600;color:var(--t2);text-transform:uppercase;letter-spacing:.7px">Cash Flow</span><span style="font-size:10px;color:var(--t3)">${mn}</span></div><div style="font-size:34px;font-weight:800;font-family:var(--mono);letter-spacing:-.06em;margin-bottom:16px;color:${stats.net>=0?'var(--green)':'var(--red)'}">${stats.net>=0?'+':''}${fmt(stats.net)}</div><div style="margin-bottom:9px"><div style="display:flex;justify-content:space-between;margin-bottom:5px"><span style="font-size:12px;color:var(--t2)">Income</span><span style="font-size:14px;font-weight:700;font-family:var(--mono);color:var(--green)">${fmt(stats.income)}</span></div><div style="height:12px;background:rgba(61,148,104,.15);border-radius:99px"><div style="height:100%;width:100%;background:var(--green);border-radius:99px"></div></div></div><div><div style="display:flex;justify-content:space-between;margin-bottom:5px"><span style="font-size:12px;color:var(--t2)">Expenses</span><span style="font-size:14px;font-weight:700;font-family:var(--mono);color:var(--red)">${fmt(stats.expenses)}</span></div><div style="height:12px;background:rgba(168,72,72,.12);border-radius:99px"><div style="height:100%;width:${stats.income>0?Math.min(stats.expenses/stats.income*100,100):0}%;background:var(--red);border-radius:99px"></div></div></div></div>${(function(){
   var todayStr=new Date().toLocaleDateString('en-CA');
   var todayTxs=TX.filter(function(tx){return(tx.date||'').substring(0,10)===todayStr;});
   if(!todayTxs.length)return '';
@@ -545,7 +545,7 @@ function renderDashboard(el){const now=new Date();const s=new Date(now.getFullYe
     +'<div style="font-size:9px;font-weight:600;color:var(--t2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px">Net today</div>'
     +'<div style="font-size:14px;font-weight:800;font-family:var(--mono);color:'+(todayNet>=0?'var(--green)':'var(--red)')+'">'+(todayNet>=0?'+':'')+fmt(todayNet)+'</div></div>'
     +'</div>';
-})()}<div class="sh"><span class="st">Recent</span><button class="sl" id="rec-expand">Show more</button></div><div class="card" style="padding:0 13px" id="rec-card">${TX.length===0?'<div class="empty"><p>No transactions yet.<br>Tap + to add your first one.</p></div>':TX.slice(0,3).map((t,i)=>txRow(t,i)).join('')}</div>${topExp.length>0?`<div class="sh" style="margin-top:4px"><span class="st">Spending this month</span></div><div class="card" style="padding:14px;text-align:center">${donut(topExp.map(([id,v])=>{const c=getCat(id);return{c:c.Colour,v,n:c.Name};}),fmt(expTotal),'expenses','dash-exp')}${topExp.map(([id,v])=>{const c=getCat(id);const pct=expTotal>0?(v/expTotal*100).toFixed(0):0;return`<div style="display:flex;align-items:center;gap:9px;padding:6px 0;border-bottom:1px solid var(--border2)"><div style="width:6px;height:6px;border-radius:50%;background:${c.Colour};flex-shrink:0"></div><div style="flex:1"><div style="font-size:12px;font-weight:500;margin-bottom:3px">${c.Name}</div><div style="height:2px;background:var(--bg-input);border-radius:99px"><div style="height:100%;width:${pct}%;background:${c.Colour};border-radius:99px"></div></div></div><div style="font-size:14px;font-weight:700;font-family:var(--mono);color:var(--red)">${fmt(v)}</div></div>`;}).join('')}</div>`:''}${upPlan.length>0?`<div class="sh" style="margin-top:4px"><span class="st">Upcoming payments</span><button class="sl" onclick="document.querySelector('[data-p=planning]').click()">See all</button></div><div class="card" style="padding:4px 13px">${upPlan.map(p=>{const u=p.days<=3?'var(--red)':p.days<=7?'var(--amber)':'var(--t2)';return`<div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--border2)"><div style="width:30px;height:30px;border-radius:8px;background:rgba(255,255,255,.03);display:flex;align-items:center;justify-content:center"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="${p.days<0?'#a84848':p.days<=3?'#a87838':'#3a4a5a'}" stroke-width="1.7" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><polyline points="12,6 12,12 16,14"/></svg></div><div style="flex:1"><div style="font-size:12px;font-weight:500">${p.Name}</div><div style="font-size:10px;color:${u};margin-top:1px">${daysLabel(p.NextDate)}</div></div><div style="font-size:14px;font-weight:700;font-family:var(--mono);color:var(--red)">${fmt(p.Amount,p.Currency)}</div></div>`;}).join('')}</div>`:''}${BUDGETS.length>0?`<div class="sh" style="margin-top:4px"><span class="st">Budgets this month</span><button class="sl" onclick="document.querySelector('[data-p=planning]').click()">Manage</button></div>${renderBudgetMini(stats)}`:''}`;fetch('https://api.frankfurter.app/latest?from=GBP').then(r=>r.json()).then(d=>{if(!document.getElementById('fx-card'))return;document.getElementById('rec-card').insertAdjacentHTML('afterend',`<div class="sh" style="margin-top:4px"><span class="st">Exchange rates</span><span style="font-size:10px;color:var(--t2)">ECB · live</span></div><div class="card" style="padding:4px 13px" id="fx-card">$[
+})()}<div class="sh"><span class="st">Recent</span><button class="sl" id="rec-expand">Show more</button></div><div class="card" style="padding:0 13px" id="rec-card">${TX.length===0?'<div class="empty"><p>No transactions yet.<br>Tap + to add your first one.</p></div>':TX.slice(0,3).map((t,i)=>txRow(t,i)).join('')}</div>${topExp.length>0?`<div class="sh" style="margin-top:4px"><span class="st">Spending this month</span></div><div class="card" style="padding:14px;text-align:center">${donut(topExp.map(([id,v])=>{const c=getCat(id);return{c:c.Colour,v,n:c.Name};}),fmt(expTotal),'expenses','dash-exp')}${topExp.map(([id,v])=>{const c=getCat(id);const pct=expTotal>0?(v/expTotal*100).toFixed(0):0;return`<div style="display:flex;align-items:center;gap:9px;padding:6px 0;border-bottom:1px solid var(--border2)"><div style="width:6px;height:6px;border-radius:50%;background:${c.Colour};flex-shrink:0"></div><div style="flex:1"><div style="font-size:12px;font-weight:500;margin-bottom:3px">${c.Name}</div><div style="height:2px;background:var(--bg-input);border-radius:99px"><div style="height:100%;width:${pct}%;background:${c.Colour};border-radius:99px"></div></div></div><div style="font-size:14px;font-weight:700;font-family:var(--mono);color:var(--red)">${fmt(v)}</div></div>`;}).join('')}</div>`:''}${upPlan.length>0?`<div class="sh" style="margin-top:4px"><span class="st">Upcoming payments</span><button class="sl" onclick="document.querySelector('[data-p=planning]').click()">See all</button></div><div class="card" style="padding:4px 13px">${upPlan.map(p=>{const isInc=[].concat(CATS.income).find(function(cat){return cat.ID===p.Category||cat.Name===p.Category;});const amtCol=isInc?'var(--green)':'var(--red)';const sign=isInc?'+':'-';const iconCol=isInc?'#2db56e':'#e05252';const iconBg=isInc?'rgba(45,181,110,.1)':'rgba(224,82,82,.1)';const u=p.days<0?'var(--red)':p.days<=3?'var(--amber)':'var(--t2)';return`<div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--border2)"><div style="width:30px;height:30px;border-radius:8px;background:${iconBg};display:flex;align-items:center;justify-content:center"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="${iconCol}" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12,6 12,12 16,14"/></svg></div><div style="flex:1"><div style="font-size:12px;font-weight:500">${p.Name}</div><div style="font-size:10px;color:${u};margin-top:1px">${daysLabel(p.NextDate)}</div></div><div style="font-size:14px;font-weight:700;font-family:var(--mono);color:${amtCol}">${sign}${fmt(p.Amount,p.Currency)}</div></div>`;}).join('')}</div>`:''}${BUDGETS.length>0?`<div class="sh" style="margin-top:4px"><span class="st">Budgets this month</span><button class="sl" onclick="document.querySelector('[data-p=planning]').click()">Manage</button></div>${renderBudgetMini(stats)}`:''}`;fetch('https://api.frankfurter.app/latest?from=GBP').then(r=>r.json()).then(d=>{if(!document.getElementById('fx-card'))return;document.getElementById('rec-card').insertAdjacentHTML('afterend',`<div class="sh" style="margin-top:4px"><span class="st">Exchange rates</span><span style="font-size:10px;color:var(--t2)">ECB · live</span></div><div class="card" style="padding:4px 13px" id="fx-card">$[
           {p:'GBP / EUR',r:d.rates?.EUR},
           {p:'GBP / USD',r:d.rates?.USD},
           {p:'GBP / SEK',r:d.rates?.SEK},
@@ -943,7 +943,7 @@ function openEditPlanned(plan,onDone){
   var overlay=document.createElement('div');
   overlay.className='overlay';overlay.style.zIndex='300';
   var allCats=[].concat(CATS.expense,CATS.income);
-  var catOpts=allCats.map(function(cat){
+  var catOpts=allCats.slice().sort(function(a,b){return a.Name.localeCompare(b.Name);}).map(function(cat){
     return '<option value="'+cat.ID+'"'+(plan.Category===cat.ID||plan.Category===cat.Name?' selected':'')+'>'+cat.Name+'</option>';
   }).join('');
   var accOpts=ACCOUNTS.map(function(a){
@@ -966,6 +966,7 @@ function openEditPlanned(plan,onDone){
     +'<option value="Weekly"'+(plan.Frequency==='Weekly'?' selected':'')+'>Weekly</option>'
     +'<option value="Biweekly"'+(plan.Frequency==='Biweekly'?' selected':'')+'>Fortnightly</option>'
     +'<option value="Quarterly"'+(plan.Frequency==='Quarterly'?' selected':'')+'>Quarterly</option>'
+    +'<option value="Semester"'+(plan.Frequency==='Semester'?' selected':'')+'>Semester</option>'
     +'<option value="Yearly"'+(plan.Frequency==='Yearly'?' selected':'')+'>Yearly</option>'
     +'</select></div>'
     +'<div class="fg"><label class="fl">Next due date</label><input class="fi" id="ep-date" type="date" style="color-scheme:dark" value="'+(plan.NextDate||'').substring(0,10)+'"/></div>'
@@ -1012,7 +1013,7 @@ function openEditPlanned(plan,onDone){
 function openAddPlanned(onDone){
   var overlay=document.createElement('div');
   overlay.className='overlay';overlay.style.zIndex='300';
-  var catOpts=([].concat(CATS.expense,CATS.income)).map(function(c){return'<option value="'+c.ID+'">'+c.Name+'</option>';}).join('');
+  var catOpts=([].concat(CATS.expense,CATS.income)).sort(function(a,b){return a.Name.localeCompare(b.Name);}).map(function(c){return'<option value="'+c.ID+'">'+c.Name+'</option>';}).join('');
   var accOpts=ACCOUNTS.map(function(a){return'<option value="'+a.ID+'">'+a.Symbol+' '+a.Name+'</option>';}).join('');
   overlay.innerHTML='<div class="sheet"><div class="handle"></div><div class="mtitle">Add Planned Payment</div>'
     +'<div class="fg"><label class="fl">Name</label><input class="fi" id="np-name" placeholder="e.g. Rent, Netflix, Spotify"/></div>'
@@ -1027,6 +1028,7 @@ function openAddPlanned(onDone){
     +'<option value="Weekly">Weekly — every week</option>'
     +'<option value="Biweekly">Fortnightly — every 2 weeks</option>'
     +'<option value="Quarterly">Quarterly — every 3 months</option>'
+    +'<option value="Semester">Semester — every 6 months</option>'
     +'<option value="Yearly">Yearly — once a year</option>'
     +'</select></div>'
     +'<div class="fg" id="np-day-wrap"><label class="fl">Day of month it falls on</label>'
@@ -1125,7 +1127,7 @@ function openEditBudget(b,onDone){
 function openAddBudget(onDone){
   var overlay=document.createElement('div');
   overlay.className='overlay';overlay.style.zIndex='300';
-  var catOpts=CATS.expense.map(function(c){return'<option value="'+c.ID+'">'+c.Name+'</option>';}).join('');
+  var catOpts=CATS.expense.slice().sort(function(a,b){return a.Name.localeCompare(b.Name);}).map(function(c){return'<option value="'+c.ID+'">'+c.Name+'</option>';}).join('');
   overlay.innerHTML='<div class="sheet"><div class="handle"></div><div class="mtitle">Add Budget</div>'
     +'<div class="fg"><label class="fl">Budget name (optional)</label><input class="fi" id="nb-name" placeholder="e.g. Monthly food, Rent budget"/></div>'+'<div class="fg"><label class="fl">Category</label><select class="fi" id="nb-cat">'+catOpts+'</select></div>'
     +'<div class="fg"><label class="fl">Monthly limit</label>'
@@ -1345,9 +1347,8 @@ function openCatMapper(){
 
 
 async function repairCategoriesInSheet(){
-  // CLEAR and REWRITE Categories tab completely
-  var catData=[
-    ['ID','Name','Type','Icon','Colour','Labels','Active'],
+  // Categories to ensure exist — but PRESERVE any existing rows (and their custom colours)
+  var needed=[
     ['Eating Out','Eating Out','expense','food','#a87838','','TRUE'],
     ['Groceries','Groceries','expense','food','#9e7030','','TRUE'],
     ['Coffee','Coffee','expense','coffee','#8a5a38','','TRUE'],
@@ -1382,55 +1383,45 @@ async function repairCategoriesInSheet(){
     ['Tax In','Tax In','income','other','#6a88b8','','TRUE'],
     ['TRANSFER','TRANSFER','transfer','transfer','#4672c4','','TRUE'],
   ];
-
-  // CLEAR and REWRITE Accounts tab completely
-  var accData=[
-    ['ID','Name','Symbol','Currency','InitialBalance','Colour','Active','CreatedAt'],
-    ['£','£ Sterling','£','GBP','0','#4672c4','TRUE',new Date().toISOString()],
-    ['€','€ Euro','€','EUR','0','#2e7a72','TRUE',new Date().toISOString()],
-    ['Map2Growth','Map2Growth','€','EUR','0','#7258a8','TRUE',new Date().toISOString()],
-  ];
-
   try{
-    // Write Categories — clear entire sheet first then write all rows
-    await gapi.client.sheets.spreadsheets.values.clear({
-      spreadsheetId:sheetId,
-      range:'Categories',
-    });
-    await gapi.client.sheets.spreadsheets.values.update({
-      spreadsheetId:sheetId,
-      range:'Categories!A1',
-      valueInputOption:'RAW',
-      resource:{values:catData},
-    });
-
-    // Write Accounts — preserve existing InitialBalance values if set
-    var existingAccRows=await readSheet('Accounts');
-    var existingBals={};
-    existingAccRows.slice(1).forEach(function(r){
-      if(r[0]&&r[4]&&parseFloat(r[4])!==0) existingBals[r[0]]=r[4];
-    });
-    // Apply saved balances
-    accData.slice(1).forEach(function(row){
-      if(existingBals[row[0]]) row[4]=existingBals[row[0]];
-    });
-
-    await gapi.client.sheets.spreadsheets.values.clear({
-      spreadsheetId:sheetId,
-      range:'Accounts',
-    });
-    await gapi.client.sheets.spreadsheets.values.update({
-      spreadsheetId:sheetId,
-      range:'Accounts!A1',
-      valueInputOption:'RAW',
-      resource:{values:accData},
-    });
-
-    console.log('Sheet repaired: Categories and Accounts rewritten');
-    toast('Sheet updated ✓','suc');
+    // Read what already exists — PRESERVE existing rows entirely (keeps your custom colours)
+    var existingRows=await readSheet('Categories');
+    var hasHeader=existingRows.length>0;
+    var existingIds={};
+    existingRows.slice(1).forEach(function(r){if(r[0])existingIds[r[0]]=true;});
+    // Only APPEND categories that don't already exist — never overwrite
+    var toAdd=needed.filter(function(row){return!existingIds[row[0]];});
+    if(!hasHeader){
+      // Sheet empty — write header + all
+      await gapi.client.sheets.spreadsheets.values.update({
+        spreadsheetId:sheetId,range:'Categories!A1',valueInputOption:'RAW',
+        resource:{values:[['ID','Name','Type','Icon','Colour','Labels','Active']].concat(needed)}
+      });
+    } else if(toAdd.length>0){
+      for(var i=0;i<toAdd.length;i++){await appendRow('Categories',toAdd[i]);}
+    }
+    // Accounts — same approach, preserve existing
+    var accRows=await readSheet('Accounts');
+    var accIds={};
+    accRows.slice(1).forEach(function(r){if(r[0])accIds[r[0]]=true;});
+    var neededAccs=[
+      ['£','£ Sterling','£','GBP','0','#4672c4','TRUE',new Date().toISOString()],
+      ['€','€ Euro','€','EUR','0','#2e7a72','TRUE',new Date().toISOString()],
+      ['Map2Growth','Map2Growth','€','EUR','0','#7258a8','TRUE',new Date().toISOString()],
+    ];
+    if(accRows.length===0){
+      await gapi.client.sheets.spreadsheets.values.update({
+        spreadsheetId:sheetId,range:'Accounts!A1',valueInputOption:'RAW',
+        resource:{values:[['ID','Name','Symbol','Currency','InitialBalance','Colour','Active','CreatedAt']].concat(neededAccs)}
+      });
+    } else {
+      var accsToAdd=neededAccs.filter(function(r){return!accIds[r[0]];});
+      for(var i=0;i<accsToAdd.length;i++){await appendRow('Accounts',accsToAdd[i]);}
+    }
+    toast('Categories & accounts checked ✓','suc');
   }catch(e){
     console.error('Repair failed:',e);
-    toast('Sheet repair failed — check console','err');
+    toast('Repair failed — check console','err');
   }
 }
 
@@ -1510,7 +1501,7 @@ async function checkAutoPlanned(){
   }
 }
 
-async function daysBetween(dateStr){
+function daysBetween(dateStr){
   // Returns whole days from today (midnight) to the given date (midnight)
   // Positive = future, negative = past, 0 = today
   var target=new Date((dateStr||'').substring(0,10)+'T00:00:00');
@@ -1535,6 +1526,7 @@ async function advancePlannedDate(p){
     if(freq==='weekly') next.setDate(next.getDate()+7);
     else if(freq==='biweekly') next.setDate(next.getDate()+14);
     else if(freq==='quarterly') next.setMonth(next.getMonth()+3);
+    else if(freq==='semester') next.setMonth(next.getMonth()+6);
     else if(freq==='yearly') next.setFullYear(next.getFullYear()+1);
     else next.setMonth(next.getMonth()+1); // monthly default
     guard++;
