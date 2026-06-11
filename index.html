@@ -167,6 +167,7 @@ select.fi{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.o
 <script>
 const CLIENT_ID='441317756280-ekc345fhpmdbtbgqccve22s3e2bsapt3.apps.googleusercontent.com';
 const SHEET_NAME='Tiago Finance';
+const ICON_KEYS=['food','coffee','bills','shop','transport','car','trolley','house','heart','health','entertainment','travel','plane','fitness','family','baby','home','edu','salary','invest','savings','income','tax','code','gambling','loss','transfer','other'];
 const SCOPES='https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/drive.file profile email';
 const DISCOVERY=['https://sheets.googleapis.com/$discovery/rest?version=v4','https://www.googleapis.com/discovery/v1/apis/drive/v3/rest'];
 const TX_HEADERS=['account','category','currency','amount','ref_currency_amount','type','payment_type','payment_type_local','note','date','gps_latitude','gps_longitude','gps_accuracy_in_meters','warranty_in_month','transfer','payee','labels','envelope_id','custom_category'];
@@ -316,7 +317,7 @@ async function initSheetHeaders(){await batchUpdate([{range:'Transactions!A1',va
 async function seedDefaults(){const now=new Date().toISOString();const accs=[
   ['£','£ Sterling','£','GBP','0','#4672c4','TRUE',now],
   ['€','€ Euro','€','EUR','0','#2e7a72','TRUE',now],
-  ['Map2Growth','Map2Growth','€','EUR','0','#7258a8','TRUE',now],
+  ['Account 3','Account 3','€','EUR','0','#7258a8','TRUE',now],
 ];const cats=[
     ['Eating Out','Eating Out','expense','food','#a87838','','TRUE'],
     ['Groceries','Groceries','expense','food','#9e7030','','TRUE'],
@@ -536,16 +537,20 @@ function getCatIcon(cat,col){
     'shopping':'shop','transport':'car','transport in':'car','transport out':'car','health':'heart',
     'entertainment':'entertainment','travel':'plane','fitness':'fitness',
     'family':'family','baby':'baby','home':'home','education':'edu',
-    'collins in':'salary','navblue in':'salary','salary':'salary','freelance':'code',
+    'salary':'salary','pay check 1':'salary','pay check 2':'salary','freelance':'code',
     'investments in':'invest','investments out':'invest',
     'brokerage in':'invest','brokerage out':'invest',
     'savings':'savings','general in':'income','tax in':'tax',
     'general out':'other','tax out':'tax','gambling':'gambling',
-    'loss':'loss','m2g out':'other','navblue out':'other',
-    'collins out':'other','transfer':'transfer',
+    'loss':'loss',
+    'transfer':'transfer',
   };
   var rawName=(cat.Name||cat.ID||'').toLowerCase();
-  var iconKey=nameMap[rawName]||nameMap[(cat.ID||'').toLowerCase()]||'other';
+  // PRIORITY 1: explicit Icon from the sheet (set via icon picker).
+  // PRIORITY 2: guess from category name. PRIORITY 3: 'other'.
+  var sheetIcon=(cat.Icon||'').toLowerCase().trim();
+  var validIcon=(typeof ICON_KEYS!=='undefined'&&ICON_KEYS.indexOf(sheetIcon)>=0);
+  var iconKey=validIcon?sheetIcon:(nameMap[rawName]||nameMap[(cat.ID||'').toLowerCase()]||'other');
   var icons={
     'food':'<path d="M18 8h1a4 4 0 0 1 0 8h-1M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"/><line x1="6" y1="2" x2="6" y2="8"/><line x1="10" y1="2" x2="10" y2="8"/><line x1="14" y1="2" x2="14" y2="8"/>',
     'coffee':'<path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"/><line x1="6" y1="2" x2="6" y2="4"/><line x1="10" y1="2" x2="10" y2="4"/><line x1="14" y1="2" x2="14" y2="4"/>',
@@ -1756,7 +1761,51 @@ document.getElementById('more-diag')?.addEventListener('click',function(){runDia
   document.querySelectorAll('[data-delacc]').forEach(function(btn){btn.addEventListener('click',function(){openDeleteAccount(btn.dataset.delacc,function(){render('more');});});});
   document.getElementById('more-signout')?.addEventListener('click',()=>{if(confirm('Sign out?'))signOut();});document.getElementById('manage-cats')?.addEventListener('click',openCatManager);
 document.getElementById('map-cats')?.addEventListener('click',openCatMapper);}
-function openCatManager(){const overlay=document.createElement('div');overlay.className='overlay';overlay.style.zIndex='300';let ct='expense';overlay.innerHTML=`<div class="sheet"><div class="handle"></div><div class="mtitle">Manage Categories</div><div class="tt" id="cm-tt"><button class="tb on exp" data-ct="expense">Expense</button><button class="tb" data-ct="income">Income</button></div><div id="cm-list"></div><div style="border-top:1px solid var(--border2);padding-top:13px;margin-top:10px"><div style="font-size:11px;font-weight:600;color:var(--t2);margin-bottom:9px">Add new category</div><div style="display:flex;gap:6px;margin-bottom:9px"><input class="fi" id="nc-name" placeholder="Category name" style="flex:1"/><input class="fi" id="nc-emoji" placeholder="🏷" style="width:52px;text-align:center;font-size:16px"/></div><div class="swatches" id="nc-sw"></div><button class="btn pri" id="nc-add">Add Category</button></div><button class="btn sec" id="cm-close">Done</button></div>`;document.body.appendChild(overlay);requestAnimationFrame(()=>overlay.classList.add('on'));const buildSw=()=>{const sw=document.getElementById('nc-sw');if(!sw)return;sw.innerHTML=CAT_COLOURS.map(c=>`<div class="sw${c===selColour?' on':''}" data-c="${c}" style="background:${c}"></div>`).join('');sw.querySelectorAll('.sw').forEach(s=>s.addEventListener('click',()=>{selColour=s.dataset.c;buildSw();}));};const buildList=async()=>{const l=document.getElementById('cm-list');if(!l)return;const cats=(ct==='expense'?CATS.expense:CATS.income);l.innerHTML=cats.length?cats.map((c,i)=>`<div style="display:flex;align-items:center;gap:9px;padding:9px 0;border-bottom:1px solid var(--border2)"><div style="width:26px;height:26px;border-radius:7px;background:#1e1e1e;border:1px solid #282828;display:flex;align-items:center;justify-content:center"><div style="width:10px;height:10px;border-radius:50%;background:${c.Colour}"></div></div><span style="flex:1;font-size:13px;font-weight:500">${c.Name}</span><button data-id="${c.ID}" style="background:none;border:none;color:var(--t3);cursor:pointer;font-size:13px;padding:3px">✕</button></div>`).join(''):'<div style="color:var(--t2);font-size:12px;padding:10px 0">No categories yet.</div>';l.querySelectorAll('button[data-id]').forEach(btn=>btn.addEventListener('click',async()=>{btn.disabled=true;try{const rows=await readSheet('Categories');const idx=rows.findIndex((r,i)=>i>0&&r[0]===btn.dataset.id);if(idx>0){await gapi.client.sheets.spreadsheets.values.update({spreadsheetId:sheetId,range:`Categories!G${idx+1}`,valueInputOption:'RAW',resource:{values:[['FALSE']]}});await loadAll();buildList();toast('Removed');}}catch(e){toast('Error','err');}}));};overlay.querySelectorAll('[data-ct]').forEach(b=>b.addEventListener('click',()=>{ct=b.dataset.ct;overlay.querySelectorAll('[data-ct]').forEach(x=>x.classList.remove('on','exp','inc'));b.classList.add('on',ct==='expense'?'exp':'inc');buildList();}));document.getElementById('nc-add').addEventListener('click',async()=>{const name=document.getElementById('nc-name').value.trim();if(!name){toast('Enter a name','err');return;}const btn=document.getElementById('nc-add');btn.disabled=true;btn.textContent='Saving…';try{await appendRow('Categories',['cat_'+Date.now(),name,ct,'other',selColour,'','TRUE']);await loadAll();buildList();document.getElementById('nc-name').value='';toast('Added ✓','suc');}catch(e){toast('Failed','err');}finally{btn.disabled=false;btn.textContent='Add Category';}});const close=()=>{overlay.classList.remove('on');setTimeout(()=>overlay.remove(),300);render('more');};document.getElementById('cm-close').addEventListener('click',close);overlay.addEventListener('click',e=>{if(e.target===overlay)close();});buildSw();buildList();}
+
+
+function openIconPicker(catId,onDone){
+  var cat=getCat(catId);
+  var overlay=document.createElement('div');
+  overlay.className='overlay';overlay.style.zIndex='340';
+  var grid=ICON_KEYS.map(function(k){
+    var fakeCat={Name:k,ID:k,Icon:k,Colour:cat.Colour||'#888'};
+    var svg=getCatIcon(fakeCat,cat.Colour||'#aaa');
+    var isCur=(cat.Icon||'')===k;
+    return '<button class="icon-pick" data-icon="'+k+'" style="display:flex;flex-direction:column;align-items:center;gap:4px;padding:10px 4px;background:'+(isCur?'var(--blue-s)':'var(--bg-card)')+';border:1px solid '+(isCur?'var(--blue)':'var(--border2)')+';border-radius:10px;cursor:pointer">'
+      +'<div style="width:22px;height:22px;display:flex;align-items:center;justify-content:center">'+svg+'</div>'
+      +'<div style="font-size:8px;color:var(--t2);text-transform:capitalize">'+k+'</div>'
+      +'</button>';
+  }).join('');
+  overlay.innerHTML='<div class="sheet"><div class="handle"></div>'
+    +'<div class="mtitle">Choose icon for '+cat.Name+'</div>'
+    +'<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:7px;margin-bottom:14px;max-height:50vh;overflow-y:auto">'+grid+'</div>'
+    +'<button class="btn sec" id="ip-cancel">Cancel</button></div>';
+  document.body.appendChild(overlay);
+  requestAnimationFrame(function(){overlay.classList.add('on');});
+  overlay.querySelectorAll('.icon-pick').forEach(function(btn){
+    btn.addEventListener('click',async function(){
+      var icon=btn.dataset.icon;
+      btn.style.opacity='0.5';
+      try{
+        var rows=await readSheet('Categories');
+        var ri=rows.findIndex(function(r,i){return i>0&&r[0]===catId;});
+        if(ri>0){
+          // Icon is column D (index 3): ID,Name,Type,Icon,Colour,Labels,Active
+          await gapi.client.sheets.spreadsheets.values.update({
+            spreadsheetId:sheetId,range:'Categories!D'+(ri+1),valueInputOption:'RAW',
+            resource:{values:[[icon]]}
+          });
+          await loadAll();toast('Icon updated','suc');close();if(onDone)onDone();
+        } else { toast('Category not found','err'); }
+      }catch(e){console.error(e);toast('Update failed','err');btn.style.opacity='1';}
+    });
+  });
+  document.getElementById('ip-cancel').addEventListener('click',close);
+  overlay.addEventListener('click',function(e){if(e.target===overlay)close();});
+  function close(){overlay.classList.remove('on');setTimeout(function(){overlay.remove();},300);}
+}
+
+function openCatManager(){const overlay=document.createElement('div');overlay.className='overlay';overlay.style.zIndex='300';let ct='expense';overlay.innerHTML=`<div class="sheet"><div class="handle"></div><div class="mtitle">Manage Categories</div><div class="tt" id="cm-tt"><button class="tb on exp" data-ct="expense">Expense</button><button class="tb" data-ct="income">Income</button></div><div id="cm-list"></div><div style="border-top:1px solid var(--border2);padding-top:13px;margin-top:10px"><div style="font-size:11px;font-weight:600;color:var(--t2);margin-bottom:9px">Add new category</div><div style="display:flex;gap:6px;margin-bottom:9px"><input class="fi" id="nc-name" placeholder="Category name" style="flex:1"/><input class="fi" id="nc-emoji" placeholder="🏷" style="width:52px;text-align:center;font-size:16px"/></div><div class="swatches" id="nc-sw"></div><button class="btn pri" id="nc-add">Add Category</button></div><button class="btn sec" id="cm-close">Done</button></div>`;document.body.appendChild(overlay);requestAnimationFrame(()=>overlay.classList.add('on'));const buildSw=()=>{const sw=document.getElementById('nc-sw');if(!sw)return;sw.innerHTML=CAT_COLOURS.map(c=>`<div class="sw${c===selColour?' on':''}" data-c="${c}" style="background:${c}"></div>`).join('');sw.querySelectorAll('.sw').forEach(s=>s.addEventListener('click',()=>{selColour=s.dataset.c;buildSw();}));};const buildList=async()=>{const l=document.getElementById('cm-list');if(!l)return;const cats=(ct==='expense'?CATS.expense:CATS.income);l.innerHTML=cats.length?cats.map((c,i)=>`<div style="display:flex;align-items:center;gap:9px;padding:9px 0;border-bottom:1px solid var(--border2)"><button data-iconfor="${c.ID}" title="Change icon" style="width:30px;height:30px;border-radius:8px;background:${c.Colour}14;border:1px solid ${c.Colour}33;display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0">${getCatIcon(c,c.Colour)}</button><span style="flex:1;font-size:13px;font-weight:500">${c.Name}</span><button data-iconfor2="${c.ID}" style="background:var(--bg-input);border:1px solid var(--border2);color:var(--t2);cursor:pointer;font-size:10px;padding:4px 8px;border-radius:6px;font-family:var(--font)">Icon</button><button data-id="${c.ID}" style="background:none;border:none;color:var(--t3);cursor:pointer;font-size:13px;padding:3px">✕</button></div>`).join(''):'<div style="color:var(--t2);font-size:12px;padding:10px 0">No categories yet.</div>';l.querySelectorAll('[data-iconfor],[data-iconfor2]').forEach(b=>b.addEventListener('click',()=>{var id=b.dataset.iconfor||b.dataset.iconfor2;openIconPicker(id,buildList);}));l.querySelectorAll('button[data-id]').forEach(btn=>btn.addEventListener('click',async()=>{btn.disabled=true;try{const rows=await readSheet('Categories');const idx=rows.findIndex((r,i)=>i>0&&r[0]===btn.dataset.id);if(idx>0){await gapi.client.sheets.spreadsheets.values.update({spreadsheetId:sheetId,range:`Categories!G${idx+1}`,valueInputOption:'RAW',resource:{values:[['FALSE']]}});await loadAll();buildList();toast('Removed');}}catch(e){toast('Error','err');}}));};overlay.querySelectorAll('[data-ct]').forEach(b=>b.addEventListener('click',()=>{ct=b.dataset.ct;overlay.querySelectorAll('[data-ct]').forEach(x=>x.classList.remove('on','exp','inc'));b.classList.add('on',ct==='expense'?'exp':'inc');buildList();}));document.getElementById('nc-add').addEventListener('click',async()=>{const name=document.getElementById('nc-name').value.trim();if(!name){toast('Enter a name','err');return;}const btn=document.getElementById('nc-add');btn.disabled=true;btn.textContent='Saving…';try{await appendRow('Categories',['cat_'+Date.now(),name,ct,'other',selColour,'','TRUE']);await loadAll();buildList();document.getElementById('nc-name').value='';toast('Added ✓','suc');}catch(e){toast('Failed','err');}finally{btn.disabled=false;btn.textContent='Add Category';}});const close=()=>{overlay.classList.remove('on');setTimeout(()=>overlay.remove(),300);render('more');};document.getElementById('cm-close').addEventListener('click',close);overlay.addEventListener('click',e=>{if(e.target===overlay)close();});buildSw();buildList();}
 function openEditTx(tx){
   var overlay=document.createElement('div');
   overlay.className='overlay';overlay.style.zIndex='250';
@@ -1991,7 +2040,7 @@ async function repairCategoriesInSheet(){
     var neededAccs=[
       ['£','£ Sterling','£','GBP','0','#4672c4','TRUE',new Date().toISOString()],
       ['€','€ Euro','€','EUR','0','#2e7a72','TRUE',new Date().toISOString()],
-      ['Map2Growth','Map2Growth','€','EUR','0','#7258a8','TRUE',new Date().toISOString()],
+      ['Account 3','Account 3','€','EUR','0','#7258a8','TRUE',new Date().toISOString()],
     ];
     if(accRows.length===0){
       await gapi.client.sheets.spreadsheets.values.update({
