@@ -939,7 +939,167 @@ function openCustomiseDash(){
   function render2(){if(curPage==='dashboard')renderDashboard(document.getElementById('p-dashboard'));}
 }
 
-function renderDashboard(el){const now=new Date();const s=new Date(now.getFullYear(),now.getMonth(),1),e=new Date(now.getFullYear(),now.getMonth()+1,0);const stats=getStats(TX,s,e);const mn=now.toLocaleDateString('en-GB',{month:'long',year:'numeric'});const byCat={};stats.filtered.filter(t=>(t.type||'').toLowerCase()==='expense').forEach(t=>{byCat[t.category]=(byCat[t.category]||0)+Math.abs(parseFloat(t.ref_currency_amount||t.amount)||0);});const expTotal=Object.values(byCat).reduce((a,v)=>a+v,0);const topExp=Object.entries(byCat).sort((a,b)=>b[1]-a[1]).slice(0,8);const byCatInc={};stats.filtered.filter(t=>(t.type||'').toLowerCase()==='income').forEach(t=>{byCatInc[t.category]=(byCatInc[t.category]||0)+Math.abs(parseFloat(t.ref_currency_amount||t.amount)||0);});const incTotal=Object.values(byCatInc).reduce((a,v)=>a+v,0);const topInc=Object.entries(byCatInc).sort((a,b)=>b[1]-a[1]).slice(0,8);const today=new Date();const _td=new Date();_td.setHours(0,0,0,0);const upPlan=PLANNED.map(p=>{const d=new Date((p.NextDate||'').substring(0,10)+'T00:00:00');return{...p,days:Math.round((d-_td)/86400000)};}).filter(p=>p.days>=-7).sort((a,b)=>a.days-b.days).slice(0,5);el.innerHTML=`<div class="ph"><h1 class="pt">Dashboard</h1><div class="hbtns"><button class="hbtn" id="dash-privacy">${hideAmounts?'<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>':'<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>'}</button><button class="hbtn" id="dash-notif"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>${upPlan.some(p=>p.days<=3)?'<div class="badge"></div>':''}</button><button class="hbtn" id="dash-settings"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button></div></div><div class="acc-grid">${ACCOUNTS.map(a=>{const b=getAccBal(a.ID,a.Currency);return`<div class="acc-card"><div><div class="acc-name" style="font-size:13px;font-weight:600;color:var(--t1);margin-bottom:6px">${a.Name}</div><div class="acc-sym" style="background:${a.Colour}18;color:${a.Colour};width:26px;height:26px;border-radius:8px;font-size:13px;font-weight:600;display:flex;align-items:center;justify-content:center">${a.Symbol}</div></div><div class="acc-bal" style="color:${b<0?'var(--red)':'var(--t1)'}">${b<0?'-':''}${fmt(Math.abs(b),a.Currency)}</div></div>`;}).join('')}<div class="acc-card add" id="dash-add-acc" style="cursor:pointer"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Add account</div></div><div class="cf-card"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px"><span style="font-size:10px;font-weight:600;color:var(--t2);text-transform:uppercase;letter-spacing:.7px">Cash Flow</span><span style="font-size:10px;color:var(--t3)">${mn}</span></div><div style="font-size:34px;font-weight:800;font-family:var(--mono);letter-spacing:-.06em;margin-bottom:16px;color:${stats.net>=0?'var(--green)':'var(--red)'}">${stats.net>=0?'+':''}${fmt(stats.net)}</div><div style="margin-bottom:9px"><div style="display:flex;justify-content:space-between;margin-bottom:5px"><span style="font-size:12px;color:var(--t2)">Income</span><span style="font-size:14px;font-weight:700;font-family:var(--mono);color:var(--green)">${fmt(stats.income)}</span></div><div style="height:12px;background:rgba(61,148,104,.15);border-radius:99px"><div style="height:100%;width:100%;background:var(--green);border-radius:99px"></div></div></div><div><div style="display:flex;justify-content:space-between;margin-bottom:5px"><span style="font-size:12px;color:var(--t2)">Expenses</span><span style="font-size:14px;font-weight:700;font-family:var(--mono);color:var(--red)">${fmt(stats.expenses)}</span></div><div style="height:12px;background:rgba(168,72,72,.12);border-radius:99px"><div style="height:100%;width:${stats.income>0?Math.min(stats.expenses/stats.income*100,100):0}%;background:var(--red);border-radius:99px"></div></div></div></div>${(function(){
+// ═══════════════════════════════════════════════════════════════════════════
+// INSIGHTS ENGINE — analyses TX to surface smart, automatic observations.
+// Pure local computation, no external services. Returns an array of insight objects.
+// ═══════════════════════════════════════════════════════════════════════════
+function computeInsights(){
+  var out=[];
+  if(!TX||TX.length<3) return out;
+  var now=new Date();
+  var monthStart=new Date(now.getFullYear(),now.getMonth(),1);
+  var prevMonthStart=new Date(now.getFullYear(),now.getMonth()-1,1);
+  var prevMonthEnd=new Date(now.getFullYear(),now.getMonth(),0,23,59,59);
+  var dayOfMonth=now.getDate();
+  var daysInMonth=new Date(now.getFullYear(),now.getMonth()+1,0).getDate();
+
+  function inRange(tx,s,e){var d=new Date(tx.date);return d>=s&&d<=e;}
+  function absAmt(tx){return Math.abs(parseFloat(tx.ref_currency_amount||tx.amount)||0);}
+  function isExp(tx){return (tx.type||'').toLowerCase()==='expense';}
+  function isInc(tx){return (tx.type||'').toLowerCase()==='income';}
+
+  // ── This month vs last month: total spend ──────────────────────────────────
+  var thisMonthExp=TX.filter(function(t){return isExp(t)&&inRange(t,monthStart,now);}).reduce(function(a,t){return a+absAmt(t);},0);
+  var lastMonthExp=TX.filter(function(t){return isExp(t)&&inRange(t,prevMonthStart,prevMonthEnd);}).reduce(function(a,t){return a+absAmt(t);},0);
+  if(lastMonthExp>0&&thisMonthExp>0){
+    var pace=thisMonthExp/dayOfMonth*daysInMonth; // projected full-month spend
+    var diff=pace-lastMonthExp;
+    var pctDiff=(diff/lastMonthExp)*100;
+    if(Math.abs(pctDiff)>=8){
+      out.push({
+        icon:pctDiff>0?'trend-up':'trend-down',
+        tone:pctDiff>0?'warn':'good',
+        title:pctDiff>0?'Spending is up this month':'Spending is down this month',
+        body:'At your current pace you\'re on track to spend about '+fmt(pace)+' this month, '+Math.abs(pctDiff).toFixed(0)+'% '+(pctDiff>0?'more':'less')+' than last month\'s '+fmt(lastMonthExp)+'.'
+      });
+    }
+  }
+
+  // ── Biggest category change vs last month ───────────────────────────────────
+  function catTotals(s,e){
+    var m={};
+    TX.filter(function(t){return isExp(t)&&inRange(t,s,e);}).forEach(function(t){m[t.category]=(m[t.category]||0)+absAmt(t);});
+    return m;
+  }
+  var thisCat=catTotals(monthStart,now),lastCat=catTotals(prevMonthStart,prevMonthEnd);
+  var biggestJump=null,biggestJumpAmt=0;
+  Object.keys(thisCat).forEach(function(cat){
+    var change=thisCat[cat]-(lastCat[cat]||0);
+    if(change>biggestJumpAmt){biggestJumpAmt=change;biggestJump=cat;}
+  });
+  if(biggestJump&&biggestJumpAmt>20&&lastCat[biggestJump]!==undefined){
+    var bc=getCat(biggestJump);
+    out.push({
+      icon:'category',color:bc.Colour,
+      tone:'neutral',
+      title:'Biggest increase: '+bc.Name,
+      body:'You\'ve spent '+fmt(biggestJumpAmt)+' more on '+bc.Name+' so far this month than all of last month.'
+    });
+  }
+
+  // ── Top spending category this month ────────────────────────────────────────
+  var topCat=null,topAmt=0;
+  Object.keys(thisCat).forEach(function(cat){if(thisCat[cat]>topAmt){topAmt=thisCat[cat];topCat=cat;}});
+  if(topCat&&topAmt>0){
+    var tc=getCat(topCat);
+    var share=thisMonthExp>0?(topAmt/thisMonthExp*100):0;
+    out.push({
+      icon:'category',color:tc.Colour,tone:'neutral',
+      title:tc.Name+' is your top category',
+      body:tc.Name+' accounts for '+share.toFixed(0)+'% of your spending this month ('+fmt(topAmt)+').'
+    });
+  }
+
+  // ── Savings rate this month ─────────────────────────────────────────────────
+  var thisMonthInc=TX.filter(function(t){return isInc(t)&&inRange(t,monthStart,now);}).reduce(function(a,t){return a+absAmt(t);},0);
+  if(thisMonthInc>0){
+    var saved=thisMonthInc-thisMonthExp;
+    var rate=(saved/thisMonthInc)*100;
+    if(rate>=20){
+      out.push({icon:'piggy',tone:'good',title:'Strong saving this month',
+        body:'You\'ve kept '+rate.toFixed(0)+'% of your income so far — that\'s '+fmt(saved)+' saved.'});
+    } else if(rate<0){
+      out.push({icon:'alert',tone:'warn',title:'Spending exceeds income',
+        body:'This month you\'ve spent '+fmt(Math.abs(saved))+' more than you\'ve earned. Worth a look.'});
+    }
+  }
+
+  // ── Unusual single transaction (anomaly) ────────────────────────────────────
+  var recentExp=TX.filter(function(t){return isExp(t)&&inRange(t,monthStart,now);});
+  if(recentExp.length>=4){
+    var amts=recentExp.map(absAmt);
+    var mean=amts.reduce(function(a,b){return a+b;},0)/amts.length;
+    var maxTx=recentExp.reduce(function(mx,t){return absAmt(t)>absAmt(mx)?t:mx;},recentExp[0]);
+    if(absAmt(maxTx)>mean*4&&absAmt(maxTx)>50){
+      var mc=getCat(maxTx.category);
+      out.push({icon:'alert',color:mc.Colour,tone:'neutral',
+        title:'Larger-than-usual expense',
+        body:'A '+fmt(absAmt(maxTx))+' '+mc.Name+' charge stands out from your typical spending this month.'});
+    }
+  }
+
+  // ── Upcoming planned payments total ─────────────────────────────────────────
+  var monthEnd=new Date(now.getFullYear(),now.getMonth()+1,0,23,59,59);
+  var upcoming=0;
+  if(typeof PLANNED!=='undefined'){
+    PLANNED.forEach(function(p){
+      var d=new Date((p.NextDate||'').substring(0,10)+'T00:00:00');
+      if(!isNaN(d)&&d>=now&&d<=monthEnd) upcoming+=Math.abs(parseFloat(p.Amount)||0);
+    });
+  }
+  if(upcoming>0){
+    out.push({icon:'calendar',tone:'neutral',title:'Payments still due this month',
+      body:fmt(upcoming)+' in planned payments are scheduled before month-end. Make sure it\'s covered.'});
+  }
+
+  // ── Best/quietest spending day pattern ──────────────────────────────────────
+  var last30=TX.filter(function(t){return isExp(t)&&(now-new Date(t.date))<30*86400000;});
+  if(last30.length>=8){
+    var byDow=[0,0,0,0,0,0,0];
+    last30.forEach(function(t){var d=new Date(t.date).getDay();byDow[d]+=absAmt(t);});
+    var dows=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+    var maxDow=0;for(var i=1;i<7;i++){if(byDow[i]>byDow[maxDow])maxDow=i;}
+    if(byDow[maxDow]>0){
+      out.push({icon:'calendar',tone:'neutral',title:dows[maxDow]+' is your big spending day',
+        body:'Over the last 30 days, '+dows[maxDow]+' has been when you spend the most.'});
+    }
+  }
+
+  return out;
+}
+
+// Render an insight card list
+function renderInsights(){
+  var ins=computeInsights();
+  if(!ins.length) return '';
+  var toneStyle={good:{bg:'rgba(45,181,110,.08)',br:'rgba(45,181,110,.2)',ic:'#2db56e'},
+    warn:{bg:'rgba(217,164,65,.08)',br:'rgba(217,164,65,.25)',ic:'#d9a441'},
+    neutral:{bg:'var(--bg-card)',br:'var(--border2)',ic:'#6f9ae8'}};
+  function iconSvg(name,col){
+    var m={
+      'trend-up':'<polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/>',
+      'trend-down':'<polyline points="23 18 13.5 8.5 8.5 13.5 1 6"/><polyline points="17 18 23 18 23 12"/>',
+      'category':'<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/>',
+      'piggy':'<path d="M19 10a7 7 0 0 0-14 0c0 3 2 5 2 5v3h3v-2h2v2h3v-3s2-2 2-5z"/><circle cx="15" cy="9" r="1"/>',
+      'alert':'<path d="M12 2L2 20h20L12 2z"/><line x1="12" y1="9" x2="12" y2="14"/><circle cx="12" cy="17.5" r=".5"/>',
+      'calendar':'<rect x="3" y="4" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="16" y1="2" x2="16" y2="6"/>'
+    };
+    return '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="'+col+'" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">'+(m[name]||m.category)+'</svg>';
+  }
+  var cards=ins.map(function(it){
+    var ts=toneStyle[it.tone]||toneStyle.neutral;
+    var ic=it.color||ts.ic;
+    return '<div style="display:flex;gap:11px;padding:12px 13px;background:'+ts.bg+';border:1px solid '+ts.br+';border-radius:var(--rsm);margin-bottom:8px">'
+      +'<div style="width:30px;height:30px;border-radius:8px;background:'+ic+'18;display:flex;align-items:center;justify-content:center;flex-shrink:0">'+iconSvg(it.icon,ic)+'</div>'
+      +'<div style="flex:1;min-width:0"><div style="font-size:12.5px;font-weight:600;margin-bottom:2px">'+it.title+'</div>'
+      +'<div style="font-size:11.5px;color:var(--t2);line-height:1.45">'+it.body+'</div></div>'
+      +'</div>';
+  }).join('');
+  return '<div class="sh" style="margin-top:4px"><span class="st">Insights</span><span style="font-size:10px;color:var(--t2)">'+ins.length+' observation'+(ins.length===1?'':'s')+'</span></div>'
+    +'<div style="margin-bottom:6px">'+cards+'</div>';
+}
+
+function renderDashboard(el){const now=new Date();const s=new Date(now.getFullYear(),now.getMonth(),1),e=new Date(now.getFullYear(),now.getMonth()+1,0);const stats=getStats(TX,s,e);const mn=now.toLocaleDateString('en-GB',{month:'long',year:'numeric'});const byCat={};stats.filtered.filter(t=>(t.type||'').toLowerCase()==='expense').forEach(t=>{byCat[t.category]=(byCat[t.category]||0)+Math.abs(parseFloat(t.ref_currency_amount||t.amount)||0);});const expTotal=Object.values(byCat).reduce((a,v)=>a+v,0);const topExp=Object.entries(byCat).sort((a,b)=>b[1]-a[1]).slice(0,8);const byCatInc={};stats.filtered.filter(t=>(t.type||'').toLowerCase()==='income').forEach(t=>{byCatInc[t.category]=(byCatInc[t.category]||0)+Math.abs(parseFloat(t.ref_currency_amount||t.amount)||0);});const incTotal=Object.values(byCatInc).reduce((a,v)=>a+v,0);const topInc=Object.entries(byCatInc).sort((a,b)=>b[1]-a[1]).slice(0,8);const today=new Date();const _td=new Date();_td.setHours(0,0,0,0);const upPlan=PLANNED.map(p=>{const d=new Date((p.NextDate||'').substring(0,10)+'T00:00:00');return{...p,days:Math.round((d-_td)/86400000)};}).filter(p=>p.days>=-7).sort((a,b)=>a.days-b.days).slice(0,5);el.innerHTML=`<div class="ph"><h1 class="pt">Dashboard</h1><div class="hbtns"><button class="hbtn" id="dash-privacy">${hideAmounts?'<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>':'<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>'}</button><button class="hbtn" id="dash-notif"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>${upPlan.some(p=>p.days<=3)?'<div class="badge"></div>':''}</button><button class="hbtn" id="dash-settings"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button></div></div><div class="acc-grid">${ACCOUNTS.map(a=>{const b=getAccBal(a.ID,a.Currency);return`<div class="acc-card"><div><div class="acc-name" style="font-size:13px;font-weight:600;color:var(--t1);margin-bottom:6px">${a.Name}</div><div class="acc-sym" style="background:${a.Colour}18;color:${a.Colour};width:26px;height:26px;border-radius:8px;font-size:13px;font-weight:600;display:flex;align-items:center;justify-content:center">${a.Symbol}</div></div><div class="acc-bal" style="color:${b<0?'var(--red)':'var(--t1)'}">${b<0?'-':''}${fmt(Math.abs(b),a.Currency)}</div></div>`;}).join('')}<div class="acc-card add" id="dash-add-acc" style="cursor:pointer"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Add account</div></div><div class="cf-card"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px"><span style="font-size:10px;font-weight:600;color:var(--t2);text-transform:uppercase;letter-spacing:.7px">Cash Flow</span><span style="font-size:10px;color:var(--t3)">${mn}</span></div><div style="font-size:34px;font-weight:800;font-family:var(--mono);letter-spacing:-.06em;margin-bottom:16px;color:${stats.net>=0?'var(--green)':'var(--red)'}">${stats.net>=0?'+':''}${fmt(stats.net)}</div><div style="margin-bottom:9px"><div style="display:flex;justify-content:space-between;margin-bottom:5px"><span style="font-size:12px;color:var(--t2)">Income</span><span style="font-size:14px;font-weight:700;font-family:var(--mono);color:var(--green)">${fmt(stats.income)}</span></div><div style="height:12px;background:rgba(61,148,104,.15);border-radius:99px"><div style="height:100%;width:100%;background:var(--green);border-radius:99px"></div></div></div><div><div style="display:flex;justify-content:space-between;margin-bottom:5px"><span style="font-size:12px;color:var(--t2)">Expenses</span><span style="font-size:14px;font-weight:700;font-family:var(--mono);color:var(--red)">${fmt(stats.expenses)}</span></div><div style="height:12px;background:rgba(168,72,72,.12);border-radius:99px"><div style="height:100%;width:${stats.income>0?Math.min(stats.expenses/stats.income*100,100):0}%;background:var(--red);border-radius:99px"></div></div></div></div>${renderInsights()}${(function(){
   var todayStr=new Date().toLocaleDateString('en-CA');
   var todayTxs=TX.filter(function(tx){return(tx.date||'').substring(0,10)===todayStr;});
   if(!todayTxs.length)return '';
