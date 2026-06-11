@@ -533,8 +533,8 @@ function getCatIcon(cat,col){
   var nameMap={
     'eating out':'food','groceries':'trolley','food & drink':'food','coffee':'coffee',
     'bill & services':'bills','bills & services':'bills','rent':'house','mortgage':'house',
-    'shopping':'shop','transport':'car','health':'heart',
-    'entertainment':'entertainment','travel':'travel','fitness':'fitness',
+    'shopping':'shop','transport':'car','transport in':'car','transport out':'car','health':'heart',
+    'entertainment':'entertainment','travel':'plane','fitness':'fitness',
     'family':'family','baby':'baby','home':'home','education':'edu',
     'collins in':'salary','navblue in':'salary','salary':'salary','freelance':'code',
     'investments in':'invest','investments out':'invest',
@@ -559,6 +559,7 @@ function getCatIcon(cat,col){
     'health':'<path d="M22 12h-4l-3 9L9 3l-3 9H2"/>',
     'entertainment':'<circle cx="12" cy="12" r="10"/><polygon points="10,8 16,12 10,16 10,8"/>',
     'travel':'<path d="M22 2L11 13"/><path d="M22 2L15 22 11 13 2 9l20-7z"/>',
+    'plane':'<path d="M17.8 19.2L16 11l3.5-3.5C21 6 21.5 4 21 3c-1-.5-3 0-4.5 1.5L13 8 4.8 6.2c-.5-.1-.9.1-1.1.5l-.3.5c-.2.5-.1 1 .3 1.3L9 12l-2 3H4l-1 1 3 2 2 3 1-1v-3l3-2 3.5 5.3c.3.4.8.5 1.3.3l.5-.2c.4-.3.6-.7.5-1.2z"/>',
     'fitness':'<path d="M18 8h-1V6a5 5 0 0 0-10 0v2H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V10a2 2 0 0 0-2-2z"/><circle cx="12" cy="15" r="1" fill="'+col+'"/>',
     'family':'<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/>',
     'baby':'<path d="M12 2a5 5 0 1 0 0 10A5 5 0 0 0 12 2z"/><path d="M12 12c-5.33 0-8 2.67-8 4v2h16v-2c0-1.33-2.67-4-8-4z"/><path d="M9 7l1 2 2-3 2 3 1-2"/>',
@@ -611,29 +612,39 @@ function iDonut(slices,centreVal,centreSub,id){
 function setupDonutInteraction(){
   document.addEventListener('click',function(e){
     var seg=e.target.closest&&e.target.closest('.idonut-seg');
-    if(!seg)return;
+    if(!seg){
+      // Clicked outside any slice — reset ALL donuts on the page to their total
+      if(window.__donutTotal){
+        Object.keys(window.__donutTotal).forEach(function(chart){
+          var centre=document.getElementById(chart+'-center');
+          if(!centre)return;
+          var t=window.__donutTotal[chart];
+          centre.innerHTML='<div class="donut-val">'+t.val+'</div><div class="donut-sub">'+t.sub+'</div>';
+          document.querySelectorAll('.idonut-seg[data-chart="'+chart+'"]').forEach(function(s){
+            s.setAttribute('data-selected','0');s.style.strokeWidth='14';s.style.opacity='1';
+          });
+        });
+      }
+      return;
+    }
     var chart=seg.dataset.chart,idx=parseInt(seg.dataset.idx);
     var data=window.__donutData&&window.__donutData[chart];
     var centre=document.getElementById(chart+'-center');
     if(!data||!centre)return;
-    // Toggle: if this slice already selected, reset to total
     var sel=seg.getAttribute('data-selected')==='1';
-    // Clear all selection states for this chart
     document.querySelectorAll('.idonut-seg[data-chart="'+chart+'"]').forEach(function(s){
       s.setAttribute('data-selected','0');s.style.strokeWidth='14';s.style.opacity='1';
     });
     if(sel){
-      // Reset to total
       var t=window.__donutTotal[chart];
       centre.innerHTML='<div class="donut-val">'+t.val+'</div><div class="donut-sub">'+t.sub+'</div>';
     } else {
       seg.setAttribute('data-selected','1');seg.style.strokeWidth='18';
-      // Dim others
       document.querySelectorAll('.idonut-seg[data-chart="'+chart+'"]').forEach(function(s){
         if(s!==seg)s.style.opacity='0.3';
       });
-      var d=data[idx];
-      centre.innerHTML='<div class="donut-val" style="font-size:14px">'+fmt(d.v)+'</div><div class="donut-sub" style="color:'+d.c+'">'+d.n+' · '+d.pct.toFixed(0)+'%</div>';
+      var dd=data[idx];
+      centre.innerHTML='<div class="donut-val" style="font-size:14px">'+fmt(dd.v)+'</div><div class="donut-sub" style="color:'+dd.c+'">'+dd.n+' · '+dd.pct.toFixed(0)+'%</div>';
     }
   });
 }
@@ -708,7 +719,7 @@ function balanceSeries(startDate,endDate,nPoints,accId){
       running+=inWindow[wi].v;
       wi++;
     }
-    pts.push({date:pt,value:running});
+    pts.push({date:pt,value:running,future:pt.getTime()>Date.now()});
   }
   // Ensure the final point includes every in-window transaction
   while(wi<inWindow.length){running+=inWindow[wi].v;wi++;}
@@ -734,7 +745,24 @@ function lineChart(points,opts){
   function y(v){return padT+plotH-((v-minV)/range)*plotH;}
   var d='';
   points.forEach(function(p,i){d+=(i===0?'M':'L')+x(i).toFixed(1)+' '+y(p.value).toFixed(1)+' ';});
-  var area=d+'L'+x(points.length-1).toFixed(1)+' '+(padT+plotH)+' L'+x(0).toFixed(1)+' '+(padT+plotH)+' Z';
+  // Split into solid (past) and dotted (future/estimate) segments at the today boundary
+  var splitIdx=-1;
+  for(var si=0;si<points.length;si++){if(points[si].future){splitIdx=si;break;}}
+  var solidPath='',dottedPath='';
+  if(splitIdx===-1){
+    solidPath=d; // all past
+  } else {
+    // solid up to and including the last past point
+    var solidEnd=Math.max(0,splitIdx-1);
+    points.forEach(function(p,i){if(i<=solidEnd)solidPath+=(i===0?'M':'L')+x(i).toFixed(1)+' '+y(p.value).toFixed(1)+' ';});
+    // dotted from last past point through the future points
+    points.forEach(function(p,i){if(i>=solidEnd)dottedPath+=(i===solidEnd?'M':'L')+x(i).toFixed(1)+' '+y(p.value).toFixed(1)+' ';});
+  }
+  // Area fill only under the SOLID (real) portion
+  var areaEnd=splitIdx===-1?points.length-1:Math.max(0,splitIdx-1);
+  var area='';
+  points.forEach(function(p,i){if(i<=areaEnd)area+=(i===0?'M':'L')+x(i).toFixed(1)+' '+y(p.value).toFixed(1)+' ';});
+  area+='L'+x(areaEnd).toFixed(1)+' '+(padT+plotH)+' L'+x(0).toFixed(1)+' '+(padT+plotH)+' Z';
   var grid='',ylabels='';
   for(var g=0;g<=4;g++){
     var gv=minV+range*g/4;var gy=y(gv);
@@ -744,9 +772,12 @@ function lineChart(points,opts){
   }
   var xlabels='';
   var idxs=[0,Math.floor(points.length/2),points.length-1];
+  var todayMs=Date.now();
   idxs.forEach(function(i,k){
     var dt=points[i].date;
-    var lbl=k===2?'Today':dt.toLocaleDateString('en-GB',{day:'2-digit',month:'2-digit'});
+    // Show 'Today' only if this point is genuinely ~today; otherwise show the real date
+    var isToday=Math.abs(dt.getTime()-todayMs)<86400000;
+    var lbl=isToday?'Today':dt.toLocaleDateString('en-GB',{day:'2-digit',month:'short'});
     var anchor=k===0?'start':k===2?'end':'middle';
     xlabels+='<text x="'+x(i).toFixed(1)+'" y="'+(H-6)+'" fill="var(--t2)" font-size="8" text-anchor="'+anchor+'">'+lbl+'</text>';
   });
@@ -765,7 +796,8 @@ function lineChart(points,opts){
     +'</linearGradient></defs>'
     +grid
     +'<path d="'+area+'" fill="url(#bgrad_'+chartId+')"/>'
-    +'<path d="'+d+'" fill="none" stroke="#4a82e0" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>'
+    +'<path d="'+solidPath+'" fill="none" stroke="#4a82e0" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>'
+    +(dottedPath?'<path d="'+dottedPath+'" fill="none" stroke="#4a82e0" stroke-width="2" stroke-dasharray="4 4" stroke-linejoin="round" stroke-linecap="round" opacity="0.65"/>':'')
     +ylabels+xlabels
     +'<line class="lc-cursor" data-lc="'+chartId+'" x1="0" y1="'+padT+'" x2="0" y2="'+(padT+plotH)+'" stroke="#4a82e0" stroke-width="1" stroke-dasharray="2 2" style="opacity:0"/>'
     +'<circle class="lc-dot" data-lc="'+chartId+'" cx="0" cy="0" r="3.5" fill="#4a82e0" stroke="#fff" stroke-width="1.5" style="opacity:0"/>'
@@ -1229,10 +1261,17 @@ function renderStatistics(el){
       var sym=accObj?accObj.Symbol:'£';
       var trendStart=range.start;
       var earliest=earliestTxDate();
+      // Start no earlier than the first real transaction
       if(trendStart<earliest)trendStart=earliest;
       if(statPeriod==='all')trendStart=earliest;
-      var nPts=Math.min(60,Math.max(10,Math.round((range.end-trendStart)/(86400000*3))));
-      var tpts=balanceSeries(trendStart,range.end,nPts,selAcc);
+      var trendEnd=range.end;
+      // For 'all', end at today (no empty future). For month/year/custom, keep the
+      // selected end — anything past today renders as a dotted estimate line.
+      if(statPeriod==='all')trendEnd=new Date();
+      var nPts=Math.min(60,Math.max(10,Math.round((trendEnd-trendStart)/(86400000*3))));
+      var tpts=balanceSeries(trendStart,trendEnd,nPts,selAcc);
+      var rangeLabel=trendStart.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'})+' → '+trendEnd.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'});
+      var hasFuture=tpts.some(function(p){return p.future;});
       var curBal=tpts.length?tpts[tpts.length-1].value:0;
       var stBal=tpts.length?tpts[0].value:0;
       var change=curBal-stBal;
@@ -1248,7 +1287,7 @@ function renderStatistics(el){
         +'<div class="sc"><div class="sc-l">Change — '+label+'</div><div class="sc-v '+(change>=0?'pos':'neg')+'">'+(change>=0?'+':'-')+chgFmt+'</div></div>'
         +'</div>'
         +'<div class="sh"><span class="st">Balance trend — '+label+'</span></div>'
-        +'<div class="card" style="padding:14px">'+lineChart(tpts,{width:340,height:180,symbol:sym})+'</div>';
+        +'<div class="card" style="padding:14px"><div style="font-size:10px;color:var(--t2);margin-bottom:8px">'+rangeLabel+'</div>'+lineChart(tpts,{width:340,height:180,symbol:sym})+(hasFuture?'<div style="font-size:10px;color:var(--t2);margin-top:8px;display:flex;align-items:center;gap:6px"><span style="display:inline-block;width:16px;border-top:2px dashed #4a82e0;opacity:.65"></span> Dotted = estimated (no data yet)</div>':'')+'</div>';
       sc.querySelectorAll('[data-strendacc]').forEach(function(chip){
         chip.addEventListener('click',function(){trendAcc=chip.dataset.strendacc||null;rSC();});
       });
