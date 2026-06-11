@@ -103,7 +103,7 @@ select.fi{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.o
 .parr{width:28px;height:28px;background:var(--bg-card);border:1px solid var(--border2);border-radius:7px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--t2)}
 .parr:disabled{opacity:.2;cursor:not-allowed}
 .donut-wrap{position:relative;width:150px;height:150px;margin:0 auto 10px}
-.donut-center{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px}
+.donut-center{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;pointer-events:none}
 .donut-val{font-size:16px;font-weight:800;font-family:var(--mono);letter-spacing:-.03em}
 .donut-sub{font-size:9px;color:var(--t2);font-weight:500}
 .chart-wrap{width:100%;height:90px;margin:10px 0 4px}
@@ -170,7 +170,7 @@ const SHEET_NAME='Tiago Finance';
 const SCOPES='https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/drive.file profile email';
 const DISCOVERY=['https://sheets.googleapis.com/$discovery/rest?version=v4','https://www.googleapis.com/discovery/v1/apis/drive/v3/rest'];
 const TX_HEADERS=['account','category','currency','amount','ref_currency_amount','type','payment_type','payment_type_local','note','date','gps_latitude','gps_longitude','gps_accuracy_in_meters','warranty_in_month','transfer','payee','labels','envelope_id','custom_category'];
-let sheetId=null,TX=[],ACCOUNTS=[],CATS={expense:[],income:[]},PLANNED=[],BUDGETS=[],userProfile={},curPage='dashboard',txType='expense',selCat=null,trendAcc=null,hideAmounts=false,dashDonutType='expense',statDonutType='expense',statPeriod='month',statMonthOff=0,statYear=new Date().getFullYear(),statCustomS='2018-07-01',statCustomE=new Date().toISOString().split('T')[0],statView='summary',lastSync=null;
+let sheetId=null,TX=[],ACCOUNTS=[],CATS={expense:[],income:[],transfer:[]},PLANNED=[],BUDGETS=[],userProfile={},curPage='dashboard',txType='expense',selCat=null,trendAcc=null,hideAmounts=false,dashDonutType='expense',statDonutType='expense',statPeriod='month',statMonthOff=0,statYear=new Date().getFullYear(),statCustomS='2018-07-01',statCustomE=new Date().toISOString().split('T')[0],statView='summary',lastSync=null;
 const CAT_COLOURS=['#2a4a8a','#3358a8','#3d67c4','#4672c4','#5580cc','#6690d4','#7aa0dc','#3a5a9e','#2e4f8e','#4a6ab8','#5a7ac8','#6a8ad4'];
 let selColour=CAT_COLOURS[0];
 const toastEl=document.getElementById('toast');let toastTimer;
@@ -184,7 +184,7 @@ function normCat(s){
 }
 const getCat=function(rawId){
   if(!rawId)return{ID:'General Out',Name:'General Out',Icon:'other',Colour:'#3a4a5a'};
-  var all=[].concat(CATS.expense,CATS.income);
+  var all=[].concat(CATS.expense,CATS.income,CATS.transfer||[]);
   // 1. Direct ID match
   var direct=all.find(function(c){return c.ID===rawId;});
   if(direct)return direct;
@@ -420,7 +420,7 @@ function normaliseTx(tx){
   if(tx.labels) tx.labels=tx.labels.replace(/[;|]/g,',').trim();
   return tx;
 }
-async function loadAll(){const[txR,accR,catR,planR,budR]=await Promise.all([readSheet('Transactions'),readSheet('Accounts'),readSheet('Categories'),readSheet('PlannedPayments'),readSheet('Budgets')]);TX=rowsToObjects(txR).map(normaliseTx).sort((a,b)=>new Date(b.date)-new Date(a.date));ACCOUNTS=rowsToObjects(accR).filter(a=>a.Active==='TRUE');const ac=rowsToObjects(catR).filter(c=>c.Active==='TRUE').map(function(c){if(!c.Colour&&c.Color)c.Colour=c.Color;return c;});CATS.expense=ac.filter(c=>c.Type==='expense');CATS.income=ac.filter(c=>c.Type==='income');PLANNED=rowsToObjects(planR).filter(p=>p.Active==='TRUE');BUDGETS=rowsToObjects(budR).filter(b=>b.Active==='TRUE');lastSync=new Date();}
+async function loadAll(){const[txR,accR,catR,planR,budR]=await Promise.all([readSheet('Transactions'),readSheet('Accounts'),readSheet('Categories'),readSheet('PlannedPayments'),readSheet('Budgets')]);TX=rowsToObjects(txR).map(normaliseTx).sort((a,b)=>new Date(b.date)-new Date(a.date));ACCOUNTS=rowsToObjects(accR).filter(a=>a.Active==='TRUE');const ac=rowsToObjects(catR).filter(c=>c.Active==='TRUE').map(function(c){if(!c.Colour&&c.Color)c.Colour=c.Color;return c;});CATS.expense=ac.filter(c=>c.Type==='expense');CATS.income=ac.filter(c=>c.Type==='income');CATS.transfer=ac.filter(c=>c.Type==='transfer');PLANNED=rowsToObjects(planR).filter(p=>p.Active==='TRUE');BUDGETS=rowsToObjects(budR).filter(b=>b.Active==='TRUE');lastSync=new Date();}
 function exportCSV(){const rows=[TX_HEADERS,...TX.map(tx=>TX_HEADERS.map(h=>tx[h]||''))];const csv=rows.map(r=>r.map(v=>`"${(v||'').toString().replace(/"/g,'""')}"`).join(',')).join('\n');const url=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));const a=document.createElement('a');a.href=url;a.download=`finance_${new Date().toISOString().split('T')[0]}.csv`;a.click();URL.revokeObjectURL(url);toast('CSV exported','suc');}
 async function boot(){try{hideAmounts=localStorage.getItem('financeHideAmounts')==='1';await initGoogle();if(isTokenValid()&&gapi.client.getToken()){await onSignedIn();}else{hideSplash();showAuth();}}catch(e){console.error(e);hideSplash();showAuth();}}
 function hideSplash(){setTimeout(()=>{const s=document.getElementById('splash');s.classList.add('hide');setTimeout(()=>s.remove(),400);},900);}
@@ -531,9 +531,9 @@ function hexToRgba(hex,alpha){
 }
 function getCatIcon(cat,col){
   var nameMap={
-    'eating out':'food','groceries':'food','food & drink':'food','coffee':'coffee',
-    'bill & services':'bills','bills & services':'bills','rent':'bills','mortgage':'bills',
-    'shopping':'shop','transport':'transport','health':'health',
+    'eating out':'food','groceries':'trolley','food & drink':'food','coffee':'coffee',
+    'bill & services':'bills','bills & services':'bills','rent':'house','mortgage':'house',
+    'shopping':'shop','transport':'car','health':'heart',
     'entertainment':'entertainment','travel':'travel','fitness':'fitness',
     'family':'family','baby':'baby','home':'home','education':'edu',
     'collins in':'salary','navblue in':'salary','salary':'salary','freelance':'code',
@@ -552,6 +552,10 @@ function getCatIcon(cat,col){
     'bills':'<rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/><line x1="2" y1="10" x2="22" y2="10"/>',
     'shop':'<path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/>',
     'transport':'<rect x="1" y="3" width="15" height="13" rx="2"/><path d="M16 8h4l3 4v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/>',
+    'car':'<path d="M5 17h14M5 17a2 2 0 0 1-2-2v-3l2-5a2 2 0 0 1 1.9-1.4h8.2A2 2 0 0 1 19 7l2 5v3a2 2 0 0 1-2 2M5 17v2M19 17v2"/><path d="M5 12h14"/><circle cx="7.5" cy="14.5" r=".5" fill="'+col+'"/><circle cx="16.5" cy="14.5" r=".5" fill="'+col+'"/>',
+    'trolley':'<circle cx="9" cy="21" r="1"/><circle cx="18" cy="21" r="1"/><path d="M1 1h4l2.7 13.4a2 2 0 0 0 2 1.6h7.7a2 2 0 0 0 2-1.6L23 6H6"/>',
+    'house':'<path d="M3 9.5L12 2l9 7.5"/><path d="M5 8.5V21h14V8.5"/><path d="M9 21v-6h6v6"/>',
+    'heart':'<path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 0 0 0-7.8z"/>',
     'health':'<path d="M22 12h-4l-3 9L9 3l-3 9H2"/>',
     'entertainment':'<circle cx="12" cy="12" r="10"/><polygon points="10,8 16,12 10,16 10,8"/>',
     'travel':'<path d="M22 2L11 13"/><path d="M22 2L15 22 11 13 2 9l20-7z"/>',
@@ -634,9 +638,19 @@ function setupDonutInteraction(){
   });
 }
 
-function lineChart(pts,col){if(!pts||pts.length<2)return`<div class="chart-wrap" style="display:flex;align-items:center;justify-content:center;color:var(--t2);font-size:11px">No data yet</div>`;const W=360,H=86,pt=8,pb=20,pl=4,pr=4;const vals=pts.map(p=>p.v),mn=Math.min(...vals),mx=Math.max(...vals),rng=mx-mn||1;const xy=pts.map((p,i)=>({x:pl+(i/(pts.length-1))*(W-pl-pr),y:pt+(1-(p.v-mn)/rng)*(H-pt-pb),l:p.l,v:p.v}));const d=xy.map((p,i)=>`${i===0?'M':'L'}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');const area=d+` L${xy[xy.length-1].x.toFixed(1)},${H-pb} L${xy[0].x.toFixed(1)},${H-pb} Z`;const labels=xy.filter((_,i)=>i%Math.ceil(xy.length/5)===0||i===xy.length-1).map(p=>`<text x="${p.x.toFixed(1)}" y="${H}" fill="#333" font-size="9" text-anchor="middle" font-family="DM Sans,sans-serif">${p.l}</text>`).join('');return`<div class="chart-wrap"><svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" style="width:100%;height:100%"><defs><linearGradient id="lg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="${col}" stop-opacity=".15"/><stop offset="100%" stop-color="${col}" stop-opacity="0"/></linearGradient></defs><path d="${area}" fill="url(#lg)"/><path d="${d}" fill="none" stroke="${col}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>${xy.map(p=>`<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="2.5" fill="${col}" opacity=".7"/>`).join('')}${labels}</svg></div>`;}
+
 function buildSeries(type,months=12){const now=new Date(),pts=[];for(let i=-(months-1);i<=0;i++){const s=new Date(now.getFullYear(),now.getMonth()+i,1),e=new Date(now.getFullYear(),now.getMonth()+i+1,0);const st=getStats(TX,s,e),lbl=s.toLocaleDateString('en-GB',{month:'short'});pts.push({l:lbl,v:type==='income'?st.income:type==='expenses'?st.expenses:type==='net'?st.net:st.income>0?(st.net/st.income*100):0});}return pts;}
 // ── Balance trend: compute cumulative GBP balance over time ──────────────────
+function earliestTxDate(){
+  var min=null;
+  TX.forEach(function(tx){
+    if(!tx.date)return;
+    var d=new Date((tx.date||'').substring(0,10)+'T00:00:00');
+    if(!isNaN(d)&&(min===null||d<min))min=d;
+  });
+  return min||new Date();
+}
+
 function balanceSeries(startDate,endDate,nPoints,accId){
   // Time series of balance over the [startDate, endDate] window.
   // accId null = total GBP-equivalent across all accounts; accId set = single account native currency.
@@ -712,29 +726,22 @@ function lineChart(points,opts){
   if(!points||points.length<2) return '<div style="padding:30px;text-align:center;color:var(--t2);font-size:12px">Not enough data for this period</div>';
   var vals=points.map(function(p){return p.value;});
   var minV=Math.min.apply(null,vals),maxV=Math.max.apply(null,vals);
-  if(minV===maxV){minV=minV-1;maxV=maxV+1;} // flat line guard
-  // Add 8% headroom/floor
+  if(minV===maxV){minV=minV-1;maxV=maxV+1;}
   var range=maxV-minV;
-  minV-=range*0.08;maxV+=range*0.08;
-  range=maxV-minV;
+  minV-=range*0.08;maxV+=range*0.08;range=maxV-minV;
   var plotW=W-padL-padR,plotH=H-padT-padB;
   function x(i){return padL+(plotW*i/(points.length-1));}
   function y(v){return padT+plotH-((v-minV)/range)*plotH;}
-  // Build path
   var d='';
   points.forEach(function(p,i){d+=(i===0?'M':'L')+x(i).toFixed(1)+' '+y(p.value).toFixed(1)+' ';});
-  // Area fill path
   var area=d+'L'+x(points.length-1).toFixed(1)+' '+(padT+plotH)+' L'+x(0).toFixed(1)+' '+(padT+plotH)+' Z';
-  // Y-axis gridlines + labels (4 lines)
   var grid='',ylabels='';
   for(var g=0;g<=4;g++){
-    var gv=minV+range*g/4;
-    var gy=y(gv);
+    var gv=minV+range*g/4;var gy=y(gv);
     grid+='<line x1="'+padL+'" y1="'+gy.toFixed(1)+'" x2="'+(W-padR)+'" y2="'+gy.toFixed(1)+'" stroke="rgba(255,255,255,.06)" stroke-width="1" stroke-dasharray="3 3"/>';
     var lbl=Math.abs(gv)>=1000?curSym+(gv/1000).toFixed(1)+'K':curSym+gv.toFixed(0);
     ylabels+='<text x="'+padL+'" y="'+(gy-3).toFixed(1)+'" fill="var(--t2)" font-size="8" font-family="var(--mono)">'+lbl+'</text>';
   }
-  // X-axis date labels (start, middle, end)
   var xlabels='';
   var idxs=[0,Math.floor(points.length/2),points.length-1];
   idxs.forEach(function(i,k){
@@ -743,17 +750,60 @@ function lineChart(points,opts){
     var anchor=k===0?'start':k===2?'end':'middle';
     xlabels+='<text x="'+x(i).toFixed(1)+'" y="'+(H-6)+'" fill="var(--t2)" font-size="8" text-anchor="'+anchor+'">'+lbl+'</text>';
   });
-  return '<svg width="100%" viewBox="0 0 '+W+' '+H+'" style="display:block">'
-    +'<defs><linearGradient id="bgrad" x1="0" y1="0" x2="0" y2="1">'
+  // Hover zones — invisible rects, one per point, carrying date+value
+  var chartId='lc'+Math.floor(Math.random()*1e6);
+  var hoverZones='';
+  points.forEach(function(p,i){
+    var zoneW=plotW/(points.length-1);
+    var zx=x(i)-zoneW/2;
+    hoverZones+='<rect class="lc-hover" data-lc="'+chartId+'" data-cx="'+x(i).toFixed(1)+'" data-cy="'+y(p.value).toFixed(1)+'" data-val="'+curSym+Math.abs(p.value).toLocaleString('en-GB',{minimumFractionDigits:0,maximumFractionDigits:0})+'" data-date="'+p.date.toLocaleDateString('en-GB',{day:'2-digit',month:'short'})+'" x="'+zx.toFixed(1)+'" y="0" width="'+zoneW.toFixed(1)+'" height="'+H+'" fill="transparent" style="cursor:crosshair"/>';
+  });
+  return '<svg width="100%" viewBox="0 0 '+W+' '+H+'" style="display:block" id="'+chartId+'">'
+    +'<defs><linearGradient id="bgrad_'+chartId+'" x1="0" y1="0" x2="0" y2="1">'
     +'<stop offset="0%" stop-color="#4672c4" stop-opacity="0.25"/>'
     +'<stop offset="100%" stop-color="#4672c4" stop-opacity="0.02"/>'
     +'</linearGradient></defs>'
     +grid
-    +'<path d="'+area+'" fill="url(#bgrad)"/>'
+    +'<path d="'+area+'" fill="url(#bgrad_'+chartId+')"/>'
     +'<path d="'+d+'" fill="none" stroke="#4a82e0" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>'
     +ylabels+xlabels
+    +'<line class="lc-cursor" data-lc="'+chartId+'" x1="0" y1="'+padT+'" x2="0" y2="'+(padT+plotH)+'" stroke="#4a82e0" stroke-width="1" stroke-dasharray="2 2" style="opacity:0"/>'
+    +'<circle class="lc-dot" data-lc="'+chartId+'" cx="0" cy="0" r="3.5" fill="#4a82e0" stroke="#fff" stroke-width="1.5" style="opacity:0"/>'
+    +'<g class="lc-tip" data-lc="'+chartId+'" style="opacity:0"><rect class="lc-tip-bg" x="0" y="0" width="74" height="30" rx="5" fill="#1c1c1c" stroke="var(--border)"/><text class="lc-tip-val" x="0" y="0" fill="#fff" font-size="10" font-weight="700" text-anchor="middle"></text><text class="lc-tip-date" x="0" y="0" fill="var(--t2)" font-size="8" text-anchor="middle"></text></g>'
+    +hoverZones
     +'</svg>';
 }
+
+// Global hover handler for line charts
+function setupLineChartHover(){
+  document.addEventListener('mousemove',lcMove);
+  document.addEventListener('touchstart',lcMove,{passive:true});
+  document.addEventListener('touchmove',lcMove,{passive:true});
+  function lcMove(e){
+    var pt=e.touches&&e.touches[0]?e.touches[0]:e;
+    var el=document.elementFromPoint(pt.clientX,pt.clientY);
+    if(!el||!el.classList||!el.classList.contains('lc-hover')){return;}
+    var id=el.dataset.lc;
+    var svg=document.getElementById(id);if(!svg)return;
+    var cx=parseFloat(el.dataset.cx),cy=parseFloat(el.dataset.cy);
+    var cursor=svg.querySelector('.lc-cursor[data-lc="'+id+'"]');
+    var dot=svg.querySelector('.lc-dot[data-lc="'+id+'"]');
+    var tip=svg.querySelector('.lc-tip[data-lc="'+id+'"]');
+    if(cursor){cursor.setAttribute('x1',cx);cursor.setAttribute('x2',cx);cursor.style.opacity='1';}
+    if(dot){dot.setAttribute('cx',cx);dot.setAttribute('cy',cy);dot.style.opacity='1';}
+    if(tip){
+      var vb=svg.getAttribute('viewBox').split(' ');var W=parseFloat(vb[2]);
+      var tipW=74;var tx=Math.max(2,Math.min(W-tipW-2,cx-tipW/2));
+      var ty=Math.max(2,cy-38);
+      tip.querySelector('.lc-tip-bg').setAttribute('x',tx);
+      tip.querySelector('.lc-tip-bg').setAttribute('y',ty);
+      var vEl=tip.querySelector('.lc-tip-val');vEl.setAttribute('x',tx+tipW/2);vEl.setAttribute('y',ty+13);vEl.textContent=el.dataset.val;
+      var dEl=tip.querySelector('.lc-tip-date');dEl.setAttribute('x',tx+tipW/2);dEl.setAttribute('y',ty+24);dEl.textContent=el.dataset.date;
+      tip.style.opacity='1';
+    }
+  }
+}
+
 
 
 function getDashOrder(){
@@ -956,7 +1006,81 @@ function renderDashboard(el){const now=new Date();const s=new Date(now.getFullYe
 });
   reorderDashboard();
 }
-function renderBudgetMini(stats){const spent={};stats.filtered.filter(t=>t.type==='expense').forEach(t=>{spent[t.category]=(spent[t.category]||0)+(+t.ref_currency_amount||0);});return BUDGETS.map(b=>{const cat=getCat(b.Category),s=spent[b.Category]||0,lim=+b.Monthly||0,pct=lim>0?Math.min(s/lim*100,100):0,over=s>lim;return`<div class="bud-card"><div style="display:flex;align-items:center;gap:9px;margin-bottom:9px"><div style="width:26px;height:26px;border-radius:7px;background:${cat.Colour}14;display:flex;align-items:center;justify-content:center"><div style="width:10px;height:10px;border-radius:50%;background:${cat.Colour}"></div></div><div style="flex:1"><div style="font-size:12px;font-weight:500">${cat.Name}</div></div><div style="font-size:11px;font-weight:600;font-family:var(--mono);color:${over?'var(--red)':'var(--t1)'}">${fmt(s)} / ${fmt(lim)}</div></div><div style="height:12px;background:var(--bg-input);border-radius:99px"><div style="height:100%;width:${pct}%;background:${over?'var(--red)':cat.Colour};border-radius:99px"></div></div><div style="font-size:10px;margin-top:4px;text-align:right;color:${over?'var(--red)':'var(--t2)'}">${over?`${fmt(s-lim)} over`:`${fmt(lim-s)} left`}</div></div>`;}).join('');}
+// Shared budget bar renderer — used on dashboard and planning.
+// spent = amount already spent this period; lim = budget limit;
+// planned = sum of upcoming planned payments for this category within the period.
+// Sum of planned payments for a category due within [start,end]
+function plannedForCategory(catId,start,end){
+  var total=0;
+  PLANNED.forEach(function(p){
+    if(p.Category!==catId&&getCat(p.Category).ID!==catId)return;
+    var d=new Date((p.NextDate||'').substring(0,10)+'T00:00:00');
+    if(isNaN(d))return;
+    if(d>=start&&d<=end) total+=Math.abs(parseFloat(p.Amount)||0);
+  });
+  return total;
+}
+
+function budgetBar(cat,spent,lim,planned){
+  spent=Math.abs(spent||0);lim=Math.abs(lim||0);planned=Math.abs(planned||0);
+  var pct=lim>0?Math.min(spent/lim*100,100):0;
+  // Projected total if planned payments also land (only count planned beyond what's spent)
+  var projected=spent+planned;
+  var projPct=lim>0?Math.min(projected/lim*100,100):0;
+  var over=lim>0&&spent>lim;
+  var projOver=lim>0&&projected>lim;
+  // Usage colour: green when low, yellow mid, category-shade(red) when near/over limit
+  function usageColour(p){
+    if(p>=85)return cat.Colour||'#e05252';   // near/over -> category shade (reds)
+    if(p>=50)return '#d9a441';                 // mid -> yellow
+    return '#2db56e';                          // low -> green
+  }
+  var barCol=usageColour(pct);
+  var projCol=usageColour(projPct);
+  // The planned overlay sits from current pct up to projected pct as a translucent band
+  var plannedWidth=Math.max(0,projPct-pct);
+  var leftAmt=lim-spent;
+  return '<div class="bud-card">'
+    +'<div style="display:flex;align-items:center;gap:9px;margin-bottom:9px">'
+    +'<div style="width:26px;height:26px;border-radius:7px;background:'+(cat.Colour||'#888')+'14;display:flex;align-items:center;justify-content:center">'
+    +getCatIcon(cat,cat.Colour||'#888')+'</div>'
+    +'<div style="flex:1"><div style="font-size:12px;font-weight:500">'+cat.Name+'</div></div>'
+    +'<div style="font-size:11px;font-weight:600;font-family:var(--mono);color:'+(over?'var(--red)':'var(--t1)')+'">'+fmt(spent)+' / '+fmt(lim)+'</div>'
+    +'</div>'
+    +'<div style="position:relative;height:12px;background:var(--bg-input);border-radius:99px;overflow:hidden">'
+    +'<div style="position:absolute;left:0;top:0;height:100%;width:'+pct+'%;background:'+barCol+';border-radius:99px"></div>'
+    +(plannedWidth>0?'<div style="position:absolute;left:'+pct+'%;top:0;height:100%;width:'+plannedWidth+'%;background:'+projCol+';opacity:0.35;border-radius:0 99px 99px 0"></div>':'')
+    +'</div>'
+    +'<div style="display:flex;justify-content:space-between;margin-top:4px">'
+    +'<div style="font-size:10px;color:var(--t2)">'+(planned>0?'<span style="opacity:.7">+'+fmt(planned)+' planned</span>':'')+'</div>'
+    +'<div style="font-size:10px;color:'+(over?'var(--red)':projOver?'#d9a441':'var(--t2)')+'">'
+    +(over?fmt(spent-lim)+' over':fmt(leftAmt)+' left'+(projOver?' · planned exceeds':''))+'</div>'
+    +'</div>'
+    +'</div>';
+}
+
+function renderBudgetMini(stats){
+  // Month window for planned-payment lookup
+  var now=new Date();
+  var mStart=new Date(now.getFullYear(),now.getMonth(),1);
+  var mEnd=new Date(now.getFullYear(),now.getMonth()+1,0,23,59,59);
+  // Spent per category THIS month (stats.filtered is the current dashboard period = this month)
+  var spent={};
+  stats.filtered.filter(function(t){return (t.type||'').toLowerCase()==='expense';}).forEach(function(t){
+    spent[t.category]=(spent[t.category]||0)+Math.abs(parseFloat(t.ref_currency_amount||t.amount)||0);
+  });
+  return BUDGETS.map(function(b){
+    var cat=getCat(b.Category);
+    var s=Math.abs(spent[b.Category]||0);
+    var lim=Math.abs(+b.Monthly||0);
+    var planned=plannedForCategory(b.Category,mStart,mEnd);
+    // Only count the part of planned that goes BEYOND what's already spent
+    var plannedExtra=Math.max(0,planned-s>0?planned:0);
+    // If planned sum exceeds existing records, show the excess as overlay
+    var overlayPlanned=planned>s?planned-s:0;
+    return budgetBar(cat,s,lim,overlayPlanned);
+  }).join('');
+}
 function renderRecords(el){let search='',filter='all';const redraw=()=>{const list=document.getElementById('rec-list');if(!list)return;let txs=TX.filter(tx=>{const cat=getCat(tx.category);return(filter==='all'||tx.type===filter)&&(!search||`${tx.note} ${tx.payee} ${tx.labels} ${cat.Name}`.toLowerCase().includes(search));});if(!txs.length){list.innerHTML='<div class="empty"><p>No transactions found</p></div>';return;}const g=groupByDate(txs);list.innerHTML=Object.entries(g).map(([date,txs])=>`<div class="dg-lbl">${date}</div><div class="card" style="padding:0 13px">${txs.map(t=>txRow(t,TX.indexOf(t))).join('')}</div>`).join('');};el.innerHTML=`<div class="ph"><h1 class="pt">Records</h1></div><div class="srch"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#3a3a3a" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input id="rec-search" placeholder="Search notes, payee, labels…"/></div><div class="fchips"><button class="fc on" data-f="all">All</button><button class="fc" data-f="expense">Expenses</button><button class="fc" data-f="income">Income</button><button class="fc" data-f="transfer">Transfers</button></div><div id="rec-list"></div>`;document.getElementById('rec-search').addEventListener('input',e=>{search=e.target.value.toLowerCase();redraw();});el.querySelectorAll('.fc').forEach(fc=>fc.addEventListener('click',()=>{el.querySelectorAll('.fc').forEach(f=>f.classList.remove('on'));fc.classList.add('on');filter=fc.dataset.f;redraw();}));redraw();}
 function getStatRange(){const now=new Date();if(statPeriod==='month'){const s=new Date(now.getFullYear(),now.getMonth()+statMonthOff,1);return{start:s,end:new Date(now.getFullYear(),now.getMonth()+statMonthOff+1,0)};}if(statPeriod==='year')return{start:new Date(statYear,0,1),end:new Date(statYear,11,31)};if(statPeriod==='all')return{start:new Date('2000-01-01'),end:new Date()};return{start:new Date(statCustomS),end:new Date(statCustomE)};}
 function getStatLabel(){const now=new Date();if(statPeriod==='month'){const d=new Date(now.getFullYear(),now.getMonth()+statMonthOff,1);if(statMonthOff===0)return'This month';if(statMonthOff===-1)return'Last month';return d.toLocaleDateString('en-GB',{month:'long',year:'numeric'});}if(statPeriod==='year')return String(statYear);if(statPeriod==='all')return'All time';return`${statCustomS} → ${statCustomE}`;}
@@ -1103,8 +1227,12 @@ function renderStatistics(el){
       var selAcc=trendAcc;
       var accObj=selAcc?ACCOUNTS.find(function(a){return a.ID===selAcc;}):null;
       var sym=accObj?accObj.Symbol:'£';
-      var nPts=Math.min(45,Math.max(10,Math.round((range.end-range.start)/(86400000*3))));
-      var tpts=balanceSeries(range.start,range.end,nPts,selAcc);
+      var trendStart=range.start;
+      var earliest=earliestTxDate();
+      if(trendStart<earliest)trendStart=earliest;
+      if(statPeriod==='all')trendStart=earliest;
+      var nPts=Math.min(60,Math.max(10,Math.round((range.end-trendStart)/(86400000*3))));
+      var tpts=balanceSeries(trendStart,range.end,nPts,selAcc);
       var curBal=tpts.length?tpts[tpts.length-1].value:0;
       var stBal=tpts.length?tpts[0].value:0;
       var change=curBal-stBal;
@@ -1272,18 +1400,33 @@ function renderPlanning(el){
           var over=lim>0&&s>lim;
           var remaining=lim-s;
           var dispName=(b.Name&&b.Name!==b.Category)?b.Name:cat.Name;
+          // Planned payments within the period (month or year)
+          var pNow=new Date();
+          var pStart=tab==='monthly'?new Date(pNow.getFullYear(),pNow.getMonth(),1):new Date(pNow.getFullYear(),0,1);
+          var pEnd=tab==='monthly'?new Date(pNow.getFullYear(),pNow.getMonth()+1,0,23,59,59):new Date(pNow.getFullYear(),11,31,23,59,59);
+          var planned=plannedForCategory(b.Category,pStart,pEnd);
+          var overlayPlanned=planned>s?planned-s:0;
+          var projected=s+overlayPlanned;
+          var projPct=lim>0?Math.min(projected/lim*100,100):0;
+          var projOver=lim>0&&projected>lim;
+          var plannedWidth=Math.max(0,projPct-pct);
+          function usageColour(p){if(p>=85)return cat.Colour||'#e05252';if(p>=50)return '#d9a441';return '#2db56e';}
+          var barCol=usageColour(pct),projCol=usageColour(projPct);
           return '<div class="bud-card">'
             +'<div style="display:flex;align-items:center;gap:9px;margin-bottom:9px">'
             +'<div style="width:26px;height:26px;border-radius:7px;background:'+cat.Colour+'14;display:flex;align-items:center;justify-content:center">'
-            +'<div style="width:10px;height:10px;border-radius:50%;background:'+cat.Colour+'"></div></div>'
+            +getCatIcon(cat,cat.Colour)+'</div>'
             +'<div style="flex:1"><div style="font-size:12px;font-weight:600">'+dispName+'</div>'
             +'<div style="font-size:10px;color:var(--t2)">'+cat.Name+' · '+tab.charAt(0).toUpperCase()+tab.slice(1)+'</div></div>'
             +'<div style="text-align:right">'
             +'<div style="font-size:12px;font-weight:700;font-family:var(--mono);color:'+(over?'var(--red)':'var(--t1)')+'">'+fmt(s)+' / '+fmt(lim)+'</div>'
-            +'<div style="font-size:10px;color:'+(over?'var(--red)':'var(--t2)')+';margin-top:2px">'+(over?fmt(s-lim)+' over':fmt(remaining)+' left')+'</div>'
+            +'<div style="font-size:10px;color:'+(over?'var(--red)':projOver?'#d9a441':'var(--t2)')+';margin-top:2px">'+(over?fmt(s-lim)+' over':fmt(remaining)+' left'+(projOver?' · planned exceeds':''))+'</div>'
             +'</div></div>'
-            +'<div style="height:12px;background:var(--bg-input);border-radius:99px">'
-            +'<div style="height:100%;width:'+pct+'%;background:'+(over?'var(--red)':cat.Colour)+';border-radius:99px"></div></div>'
+            +'<div style="position:relative;height:12px;background:var(--bg-input);border-radius:99px;overflow:hidden">'
+            +'<div style="position:absolute;left:0;top:0;height:100%;width:'+pct+'%;background:'+barCol+';border-radius:99px"></div>'
+            +(plannedWidth>0?'<div style="position:absolute;left:'+pct+'%;top:0;height:100%;width:'+plannedWidth+'%;background:'+projCol+';opacity:0.35"></div>':'')
+            +'</div>'
+            +(planned>0?'<div style="font-size:10px;color:var(--t2);margin-top:4px;opacity:.7">+'+fmt(planned)+' planned this '+(tab==='monthly'?'month':'year')+'</div>':'')
             +'<div style="display:flex;gap:6px;margin-top:9px">'
             +'<button data-bud-edit="'+b.ID+'" style="flex:1;font-size:11px;background:var(--blue-s);border:1px solid rgba(70,114,196,.25);color:var(--blue);border-radius:6px;padding:5px;cursor:pointer;font-family:var(--font);font-weight:600">Edit</button>'
             +'<button data-bud-del="'+b.ID+'" style="font-size:11px;background:var(--red-s);border:1px solid rgba(224,82,82,.25);color:var(--red);border-radius:6px;padding:5px 10px;cursor:pointer;font-family:var(--font);font-weight:600">Delete</button>'
@@ -2132,6 +2275,7 @@ async function runDiagnostic(){
 }
 
 setupDonutInteraction();
+setupLineChartHover();
 window.addEventListener('load',boot);
 if('serviceWorker' in navigator)navigator.serviceWorker.register('service-worker.js').catch(()=>{});
 </script>
