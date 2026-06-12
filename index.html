@@ -135,6 +135,27 @@ select.fi{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.o
 @keyframes spin{to{transform:rotate(360deg)}}
 .empty{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:36px 20px;color:var(--t2);gap:8px;text-align:center;font-size:12px;line-height:1.5}
 .p-avatar{width:60px;height:60px;border-radius:50%;background:var(--blue-s);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;margin:0 auto 10px;font-size:24px;font-weight:700;color:var(--blue)}
+
+.insight-carousel{position:relative;border-radius:var(--rsm);margin-bottom:10px}
+.insight-inner{position:relative;background:var(--bg-card);border-radius:var(--rsm);padding:14px;overflow:hidden;z-index:1}
+/* Shimmering white ring around the active card while auto-rotating */
+.insight-carousel:not(.user) .insight-track{position:relative}
+.insight-carousel:not(.user) .insight-inner::before{
+  content:'';position:absolute;inset:0;border-radius:var(--rsm);padding:1.5px;
+  background:linear-gradient(115deg,transparent 20%,rgba(255,255,255,.85) 50%,transparent 80%);
+  background-size:250% 100%;
+  -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);
+  -webkit-mask-composite:xor;mask-composite:exclude;
+  animation:insightShine 3.2s linear infinite;pointer-events:none;
+}
+@keyframes insightShine{0%{background-position:200% 0}100%{background-position:-50% 0}}
+/* When the user takes control, calm border, no shimmer */
+.insight-carousel.user .insight-inner{border:1px solid var(--border2)}
+.insight-dots{display:flex;justify-content:center;gap:6px;margin-top:9px}
+.insight-dot{width:6px;height:6px;border-radius:50%;background:var(--border);border:none;padding:0;cursor:pointer;transition:.2s}
+.insight-dot.on{background:#6f9ae8;width:18px;border-radius:99px}
+.insight-slide{animation:insightFade .35s ease}
+@keyframes insightFade{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
 </style>
 </head>
 <body>
@@ -165,8 +186,8 @@ select.fi{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.o
 <script src="https://apis.google.com/js/api.js"></script>
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 <script>
-const CLIENT_ID='441317756280-ekc345fhpmdbtbgqccve22s3e2bsapt3.apps.googleusercontent.com';
-const SHEET_NAME='Tiago Finance';
+const CLIENT_ID='YOUR_GOOGLE_OAUTH_CLIENT_ID_HERE';
+const SHEET_NAME='My Finance';
 const ICON_KEYS=['food','coffee','bills','shop','transport','car','trolley','house','heart','health','entertainment','travel','plane','fitness','family','baby','home','edu','salary','invest','savings','income','tax','code','gambling','loss','transfer','other'];
 const SCOPES='https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/drive.file profile email';
 const DISCOVERY=['https://sheets.googleapis.com/$discovery/rest?version=v4','https://www.googleapis.com/discovery/v1/apis/drive/v3/rest'];
@@ -940,8 +961,9 @@ function openCustomiseDash(){
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// INSIGHTS ENGINE — analyses TX to surface smart, automatic observations.
-// Pure local computation, no external services. Returns an array of insight objects.
+// INSIGHTS ENGINE — positive, sensible, automatic observations from TX data.
+// Each insight returns: {key, catId(optional), iconName(optional), tone, title, body}
+// tone: 'good' | 'neutral' (we keep wording positive/constructive, never alarmist)
 // ═══════════════════════════════════════════════════════════════════════════
 function computeInsights(){
   var out=[];
@@ -952,151 +974,179 @@ function computeInsights(){
   var prevMonthEnd=new Date(now.getFullYear(),now.getMonth(),0,23,59,59);
   var dayOfMonth=now.getDate();
   var daysInMonth=new Date(now.getFullYear(),now.getMonth()+1,0).getDate();
-
   function inRange(tx,s,e){var d=new Date(tx.date);return d>=s&&d<=e;}
   function absAmt(tx){return Math.abs(parseFloat(tx.ref_currency_amount||tx.amount)||0);}
   function isExp(tx){return (tx.type||'').toLowerCase()==='expense';}
   function isInc(tx){return (tx.type||'').toLowerCase()==='income';}
 
-  // ── This month vs last month: total spend ──────────────────────────────────
   var thisMonthExp=TX.filter(function(t){return isExp(t)&&inRange(t,monthStart,now);}).reduce(function(a,t){return a+absAmt(t);},0);
   var lastMonthExp=TX.filter(function(t){return isExp(t)&&inRange(t,prevMonthStart,prevMonthEnd);}).reduce(function(a,t){return a+absAmt(t);},0);
-  if(lastMonthExp>0&&thisMonthExp>0){
-    var pace=thisMonthExp/dayOfMonth*daysInMonth; // projected full-month spend
-    var diff=pace-lastMonthExp;
-    var pctDiff=(diff/lastMonthExp)*100;
-    if(Math.abs(pctDiff)>=8){
-      out.push({
-        icon:pctDiff>0?'trend-up':'trend-down',
-        tone:pctDiff>0?'warn':'good',
-        title:pctDiff>0?'Spending is up this month':'Spending is down this month',
-        body:'At your current pace you\'re on track to spend about '+fmt(pace)+' this month, '+Math.abs(pctDiff).toFixed(0)+'% '+(pctDiff>0?'more':'less')+' than last month\'s '+fmt(lastMonthExp)+'.'
-      });
+  var thisMonthInc=TX.filter(function(t){return isInc(t)&&inRange(t,monthStart,now);}).reduce(function(a,t){return a+absAmt(t);},0);
+
+  // ── Spending pace vs same point last month (FAIR comparison) ────────────────
+  // Compare like-for-like: spend by day-of-month this month vs spend up to the
+  // same day-of-month last month. This avoids the misleading "projected" maths.
+  if(lastMonthExp>0&&thisMonthExp>0&&dayOfMonth>=4){
+    var lastMonthSameDayEnd=new Date(now.getFullYear(),now.getMonth()-1,Math.min(dayOfMonth,new Date(now.getFullYear(),now.getMonth(),0).getDate()),23,59,59);
+    var lastMonthToDate=TX.filter(function(t){return isExp(t)&&inRange(t,prevMonthStart,lastMonthSameDayEnd);}).reduce(function(a,t){return a+absAmt(t);},0);
+    if(lastMonthToDate>0){
+      var pctDiff=((thisMonthExp-lastMonthToDate)/lastMonthToDate)*100;
+      if(pctDiff<=-8){
+        out.push({key:'pace',iconName:'gbp',tone:'good',
+          title:'You\'re spending less than last month',
+          body:'By this point last month you\'d spent '+fmt(lastMonthToDate)+'. So far this month you\'re at '+fmt(thisMonthExp)+' — '+Math.abs(pctDiff).toFixed(0)+'% lower. Nicely on track.'});
+      } else if(pctDiff>=8){
+        out.push({key:'pace',iconName:'gbp',tone:'neutral',
+          title:'A good moment to check your spending',
+          body:'You\'ve spent '+fmt(thisMonthExp)+' so far this month, compared with '+fmt(lastMonthToDate)+' by the same day last month. Keeping an eye on it now keeps you in control.'});
+      }
     }
   }
 
-  // ── Biggest category change vs last month ───────────────────────────────────
-  function catTotals(s,e){
-    var m={};
-    TX.filter(function(t){return isExp(t)&&inRange(t,s,e);}).forEach(function(t){m[t.category]=(m[t.category]||0)+absAmt(t);});
-    return m;
-  }
-  var thisCat=catTotals(monthStart,now),lastCat=catTotals(prevMonthStart,prevMonthEnd);
-  var biggestJump=null,biggestJumpAmt=0;
-  Object.keys(thisCat).forEach(function(cat){
-    var change=thisCat[cat]-(lastCat[cat]||0);
-    if(change>biggestJumpAmt){biggestJumpAmt=change;biggestJump=cat;}
-  });
-  if(biggestJump&&biggestJumpAmt>20&&lastCat[biggestJump]!==undefined){
-    var bc=getCat(biggestJump);
-    out.push({
-      icon:'category',color:bc.Colour,
-      tone:'neutral',
-      title:'Biggest increase: '+bc.Name,
-      body:'You\'ve spent '+fmt(biggestJumpAmt)+' more on '+bc.Name+' so far this month than all of last month.'
-    });
-  }
-
-  // ── Top spending category this month ────────────────────────────────────────
+  // ── Top category this month (uses the category's own icon) ───────────────────
+  var thisCat={};
+  TX.filter(function(t){return isExp(t)&&inRange(t,monthStart,now);}).forEach(function(t){thisCat[t.category]=(thisCat[t.category]||0)+absAmt(t);});
   var topCat=null,topAmt=0;
   Object.keys(thisCat).forEach(function(cat){if(thisCat[cat]>topAmt){topAmt=thisCat[cat];topCat=cat;}});
-  if(topCat&&topAmt>0){
+  if(topCat&&topAmt>0&&thisMonthExp>0){
     var tc=getCat(topCat);
-    var share=thisMonthExp>0?(topAmt/thisMonthExp*100):0;
-    out.push({
-      icon:'category',color:tc.Colour,tone:'neutral',
-      title:tc.Name+' is your top category',
-      body:tc.Name+' accounts for '+share.toFixed(0)+'% of your spending this month ('+fmt(topAmt)+').'
-    });
+    var share=(topAmt/thisMonthExp*100);
+    out.push({key:'top',catId:topCat,tone:'neutral',
+      title:tc.Name+' leads your spending',
+      body:tc.Name+' is where most of your money has gone this month — '+fmt(topAmt)+', about '+share.toFixed(0)+'% of the total. Good to know where it\'s flowing.'});
   }
 
-  // ── Savings rate this month ─────────────────────────────────────────────────
-  var thisMonthInc=TX.filter(function(t){return isInc(t)&&inRange(t,monthStart,now);}).reduce(function(a,t){return a+absAmt(t);},0);
+  // ── Savings this month (positive framing) ───────────────────────────────────
   if(thisMonthInc>0){
     var saved=thisMonthInc-thisMonthExp;
     var rate=(saved/thisMonthInc)*100;
     if(rate>=20){
-      out.push({icon:'piggy',tone:'good',title:'Strong saving this month',
-        body:'You\'ve kept '+rate.toFixed(0)+'% of your income so far — that\'s '+fmt(saved)+' saved.'});
-    } else if(rate<0){
-      out.push({icon:'alert',tone:'warn',title:'Spending exceeds income',
-        body:'This month you\'ve spent '+fmt(Math.abs(saved))+' more than you\'ve earned. Worth a look.'});
+      out.push({key:'save',iconName:'piggy',tone:'good',
+        title:'You\'re building savings this month',
+        body:'You\'ve held on to '+rate.toFixed(0)+'% of what you earned — that\'s '+fmt(saved)+' kept aside so far. Great momentum.'});
+    } else if(rate>=0&&rate<20){
+      out.push({key:'save',iconName:'piggy',tone:'neutral',
+        title:'A little room to save more',
+        body:'You\'ve kept '+fmt(saved)+' of your income this month. Even a small trim on one category could lift that further.'});
     }
   }
 
-  // ── Unusual single transaction (anomaly) ────────────────────────────────────
+  // ── Largest category this month vs its own usual (constructive) ──────────────
+  var prevCat={};
+  TX.filter(function(t){return isExp(t)&&inRange(t,prevMonthStart,prevMonthEnd);}).forEach(function(t){prevCat[t.category]=(prevCat[t.category]||0)+absAmt(t);});
+  var jumpCat=null,jumpAmt=0;
+  Object.keys(thisCat).forEach(function(cat){var ch=thisCat[cat]-(prevCat[cat]||0);if(ch>jumpAmt){jumpAmt=ch;jumpCat=cat;}});
+  if(jumpCat&&jumpAmt>25&&prevCat[jumpCat]!==undefined){
+    var jc=getCat(jumpCat);
+    out.push({key:'jump',catId:jumpCat,tone:'neutral',
+      title:jc.Name+' is higher this month',
+      body:'You\'ve put '+fmt(jumpAmt)+' more toward '+jc.Name+' than last month. Worth a glance if that wasn\'t planned.'});
+  }
+
+  // ── A notably large single expense (neutral, informative) ───────────────────
   var recentExp=TX.filter(function(t){return isExp(t)&&inRange(t,monthStart,now);});
-  if(recentExp.length>=4){
+  if(recentExp.length>=5){
     var amts=recentExp.map(absAmt);
     var mean=amts.reduce(function(a,b){return a+b;},0)/amts.length;
     var maxTx=recentExp.reduce(function(mx,t){return absAmt(t)>absAmt(mx)?t:mx;},recentExp[0]);
     if(absAmt(maxTx)>mean*4&&absAmt(maxTx)>50){
       var mc=getCat(maxTx.category);
-      out.push({icon:'alert',color:mc.Colour,tone:'neutral',
-        title:'Larger-than-usual expense',
-        body:'A '+fmt(absAmt(maxTx))+' '+mc.Name+' charge stands out from your typical spending this month.'});
+      out.push({key:'big',catId:maxTx.category,tone:'neutral',
+        title:'One bigger purchase stood out',
+        body:'A '+fmt(absAmt(maxTx))+' '+mc.Name+' expense was your largest this month. Just so it\'s on your radar.'});
     }
   }
 
-  // ── Upcoming planned payments total ─────────────────────────────────────────
+  // ── Planned payments still due (helpful heads-up) ───────────────────────────
   var monthEnd=new Date(now.getFullYear(),now.getMonth()+1,0,23,59,59);
   var upcoming=0;
   if(typeof PLANNED!=='undefined'){
-    PLANNED.forEach(function(p){
-      var d=new Date((p.NextDate||'').substring(0,10)+'T00:00:00');
-      if(!isNaN(d)&&d>=now&&d<=monthEnd) upcoming+=Math.abs(parseFloat(p.Amount)||0);
-    });
+    PLANNED.forEach(function(p){var d=new Date((p.NextDate||'').substring(0,10)+'T00:00:00');if(!isNaN(d)&&d>=now&&d<=monthEnd)upcoming+=Math.abs(parseFloat(p.Amount)||0);});
   }
   if(upcoming>0){
-    out.push({icon:'calendar',tone:'neutral',title:'Payments still due this month',
-      body:fmt(upcoming)+' in planned payments are scheduled before month-end. Make sure it\'s covered.'});
+    out.push({key:'planned',iconName:'calendar',tone:'neutral',
+      title:'A heads-up for the rest of the month',
+      body:fmt(upcoming)+' in planned payments are still coming up before month-end. You\'ve got it noted.'});
   }
 
-  // ── Best/quietest spending day pattern ──────────────────────────────────────
-  var last30=TX.filter(function(t){return isExp(t)&&(now-new Date(t.date))<30*86400000;});
-  if(last30.length>=8){
-    var byDow=[0,0,0,0,0,0,0];
-    last30.forEach(function(t){var d=new Date(t.date).getDay();byDow[d]+=absAmt(t);});
-    var dows=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
-    var maxDow=0;for(var i=1;i<7;i++){if(byDow[i]>byDow[maxDow])maxDow=i;}
-    if(byDow[maxDow]>0){
-      out.push({icon:'calendar',tone:'neutral',title:dows[maxDow]+' is your big spending day',
-        body:'Over the last 30 days, '+dows[maxDow]+' has been when you spend the most.'});
-    }
+  // ── Income arrived (positive) ───────────────────────────────────────────────
+  if(thisMonthInc>0){
+    out.push({key:'income',iconName:'gbp',tone:'good',
+      title:'Income so far this month',
+      body:'You\'ve brought in '+fmt(thisMonthInc)+' this month. That\'s the foundation everything else works from.'});
   }
 
   return out;
 }
 
-// Render an insight card list
+// Icon resolver for an insight — uses the category's real icon when catId is set
+function insightIcon(it,col){
+  if(it.catId){
+    var cat=getCat(it.catId);
+    return getCatIcon(cat,col);
+  }
+  var m={
+    'gbp':'<text x="12" y="17" font-size="17" font-weight="700" text-anchor="middle" fill="'+col+'" stroke="none">£</text>',
+    'piggy':'<path d="M19 10a7 7 0 0 0-14 0c0 3 2 5 2 5v3h3v-2h2v2h3v-3s2-2 2-5z"/><circle cx="15.5" cy="9" r="1" fill="'+col+'"/>',
+    'calendar':'<rect x="3" y="4" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="16" y1="2" x2="16" y2="6"/>'
+  };
+  return '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="'+col+'" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">'+(m[it.iconName]||m.gbp)+'</svg>';
+}
+
+// Render the insights as an auto-rotating carousel with shimmer + manual control
 function renderInsights(){
   var ins=computeInsights();
   if(!ins.length) return '';
-  var toneStyle={good:{bg:'rgba(45,181,110,.08)',br:'rgba(45,181,110,.2)',ic:'#2db56e'},
-    warn:{bg:'rgba(217,164,65,.08)',br:'rgba(217,164,65,.25)',ic:'#d9a441'},
-    neutral:{bg:'var(--bg-card)',br:'var(--border2)',ic:'#6f9ae8'}};
-  function iconSvg(name,col){
-    var m={
-      'trend-up':'<polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/>',
-      'trend-down':'<polyline points="23 18 13.5 8.5 8.5 13.5 1 6"/><polyline points="17 18 23 18 23 12"/>',
-      'category':'<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/>',
-      'piggy':'<path d="M19 10a7 7 0 0 0-14 0c0 3 2 5 2 5v3h3v-2h2v2h3v-3s2-2 2-5z"/><circle cx="15" cy="9" r="1"/>',
-      'alert':'<path d="M12 2L2 20h20L12 2z"/><line x1="12" y1="9" x2="12" y2="14"/><circle cx="12" cy="17.5" r=".5"/>',
-      'calendar':'<rect x="3" y="4" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="16" y1="2" x2="16" y2="6"/>'
-    };
-    return '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="'+col+'" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">'+(m[name]||m.category)+'</svg>';
-  }
-  var cards=ins.map(function(it){
-    var ts=toneStyle[it.tone]||toneStyle.neutral;
-    var ic=it.color||ts.ic;
-    return '<div style="display:flex;gap:11px;padding:12px 13px;background:'+ts.bg+';border:1px solid '+ts.br+';border-radius:var(--rsm);margin-bottom:8px">'
-      +'<div style="width:30px;height:30px;border-radius:8px;background:'+ic+'18;display:flex;align-items:center;justify-content:center;flex-shrink:0">'+iconSvg(it.icon,ic)+'</div>'
-      +'<div style="flex:1;min-width:0"><div style="font-size:12.5px;font-weight:600;margin-bottom:2px">'+it.title+'</div>'
-      +'<div style="font-size:11.5px;color:var(--t2);line-height:1.45">'+it.body+'</div></div>'
-      +'</div>';
+  var toneStyle={good:{ic:'#2db56e'},neutral:{ic:'#6f9ae8'}};
+  var cards=ins.map(function(it,i){
+    var col=it.catId?(getCat(it.catId).Colour||'#6f9ae8'):(toneStyle[it.tone]||toneStyle.neutral).ic;
+    return '<div class="insight-slide" data-idx="'+i+'" style="'+(i===0?'':'display:none;')+'">'
+      +'<div class="insight-inner">'
+      +'<div style="display:flex;gap:11px;align-items:flex-start">'
+      +'<div style="width:32px;height:32px;border-radius:9px;background:'+col+'1e;display:flex;align-items:center;justify-content:center;flex-shrink:0">'+insightIcon(it,col)+'</div>'
+      +'<div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:600;margin-bottom:3px">'+it.title+'</div>'
+      +'<div style="font-size:11.5px;color:var(--t2);line-height:1.5">'+it.body+'</div></div>'
+      +'</div></div></div>';
   }).join('');
-  return '<div class="sh" style="margin-top:4px"><span class="st">Insights</span><span style="font-size:10px;color:var(--t2)">'+ins.length+' observation'+(ins.length===1?'':'s')+'</span></div>'
-    +'<div style="margin-bottom:6px">'+cards+'</div>';
+  var dots=ins.map(function(it,i){return '<button class="insight-dot'+(i===0?' on':'')+'" data-dot="'+i+'" aria-label="insight '+(i+1)+'"></button>';}).join('');
+  return '<div class="sh" style="margin-top:4px"><span class="st">Insights</span><span style="font-size:10px;color:var(--t2)">'+ins.length+' for you</span></div>'
+    +'<div class="insight-carousel" id="insight-carousel" data-count="'+ins.length+'">'
+    +'<div class="insight-track">'+cards+'</div>'
+    +'<div class="insight-dots">'+dots+'</div>'
+    +'</div>';
+}
+
+// Carousel controller: auto-rotates; pauses & gives control once the user interacts
+function setupInsightCarousel(){
+  var car=document.getElementById('insight-carousel');
+  if(!car)return;
+  var count=parseInt(car.dataset.count)||0;
+  if(count<=1)return;
+  var cur=0,userControlled=false,timer=null;
+  var slides=car.querySelectorAll('.insight-slide');
+  var dots=car.querySelectorAll('.insight-dot');
+  function show(i){
+    cur=(i+count)%count;
+    slides.forEach(function(s,si){s.style.display=si===cur?'':'none';});
+    dots.forEach(function(dn,di){dn.classList.toggle('on',di===cur);});
+  }
+  function auto(){timer=setInterval(function(){if(!userControlled)show(cur+1);},5000);}
+  function stopAuto(){if(timer){clearInterval(timer);timer=null;}}
+  // Dot navigation hands control to the user
+  dots.forEach(function(dn){dn.addEventListener('click',function(){userControlled=true;car.classList.add('user');stopAuto();show(parseInt(dn.dataset.dot));});});
+  // Swipe / tap on the card also takes control and advances
+  var sx=null;
+  car.addEventListener('touchstart',function(e){sx=e.touches[0].clientX;},{passive:true});
+  car.addEventListener('touchend',function(e){
+    if(sx===null)return;var dx=e.changedTouches[0].clientX-sx;
+    if(Math.abs(dx)>40){userControlled=true;car.classList.add('user');stopAuto();show(cur+(dx<0?1:-1));}
+    sx=null;
+  },{passive:true});
+  car.querySelector('.insight-track').addEventListener('click',function(){
+    if(!userControlled){userControlled=true;car.classList.add('user');stopAuto();}
+    show(cur+1);
+  });
+  auto();
 }
 
 function renderDashboard(el){const now=new Date();const s=new Date(now.getFullYear(),now.getMonth(),1),e=new Date(now.getFullYear(),now.getMonth()+1,0);const stats=getStats(TX,s,e);const mn=now.toLocaleDateString('en-GB',{month:'long',year:'numeric'});const byCat={};stats.filtered.filter(t=>(t.type||'').toLowerCase()==='expense').forEach(t=>{byCat[t.category]=(byCat[t.category]||0)+Math.abs(parseFloat(t.ref_currency_amount||t.amount)||0);});const expTotal=Object.values(byCat).reduce((a,v)=>a+v,0);const topExp=Object.entries(byCat).sort((a,b)=>b[1]-a[1]).slice(0,8);const byCatInc={};stats.filtered.filter(t=>(t.type||'').toLowerCase()==='income').forEach(t=>{byCatInc[t.category]=(byCatInc[t.category]||0)+Math.abs(parseFloat(t.ref_currency_amount||t.amount)||0);});const incTotal=Object.values(byCatInc).reduce((a,v)=>a+v,0);const topInc=Object.entries(byCatInc).sort((a,b)=>b[1]-a[1]).slice(0,8);const today=new Date();const _td=new Date();_td.setHours(0,0,0,0);const upPlan=PLANNED.map(p=>{const d=new Date((p.NextDate||'').substring(0,10)+'T00:00:00');return{...p,days:Math.round((d-_td)/86400000)};}).filter(p=>p.days>=-7).sort((a,b)=>a.days-b.days).slice(0,5);el.innerHTML=`<div class="ph"><h1 class="pt">Dashboard</h1><div class="hbtns"><button class="hbtn" id="dash-privacy">${hideAmounts?'<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>':'<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>'}</button><button class="hbtn" id="dash-notif"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>${upPlan.some(p=>p.days<=3)?'<div class="badge"></div>':''}</button><button class="hbtn" id="dash-settings"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button></div></div><div class="acc-grid">${ACCOUNTS.map(a=>{const b=getAccBal(a.ID,a.Currency);return`<div class="acc-card"><div><div class="acc-name" style="font-size:13px;font-weight:600;color:var(--t1);margin-bottom:6px">${a.Name}</div><div class="acc-sym" style="background:${a.Colour}18;color:${a.Colour};width:26px;height:26px;border-radius:8px;font-size:13px;font-weight:600;display:flex;align-items:center;justify-content:center">${a.Symbol}</div></div><div class="acc-bal" style="color:${b<0?'var(--red)':'var(--t1)'}">${b<0?'-':''}${fmt(Math.abs(b),a.Currency)}</div></div>`;}).join('')}<div class="acc-card add" id="dash-add-acc" style="cursor:pointer"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Add account</div></div><div class="cf-card"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px"><span style="font-size:10px;font-weight:600;color:var(--t2);text-transform:uppercase;letter-spacing:.7px">Cash Flow</span><span style="font-size:10px;color:var(--t3)">${mn}</span></div><div style="font-size:34px;font-weight:800;font-family:var(--mono);letter-spacing:-.06em;margin-bottom:16px;color:${stats.net>=0?'var(--green)':'var(--red)'}">${stats.net>=0?'+':''}${fmt(stats.net)}</div><div style="margin-bottom:9px"><div style="display:flex;justify-content:space-between;margin-bottom:5px"><span style="font-size:12px;color:var(--t2)">Income</span><span style="font-size:14px;font-weight:700;font-family:var(--mono);color:var(--green)">${fmt(stats.income)}</span></div><div style="height:12px;background:rgba(61,148,104,.15);border-radius:99px"><div style="height:100%;width:100%;background:var(--green);border-radius:99px"></div></div></div><div><div style="display:flex;justify-content:space-between;margin-bottom:5px"><span style="font-size:12px;color:var(--t2)">Expenses</span><span style="font-size:14px;font-weight:700;font-family:var(--mono);color:var(--red)">${fmt(stats.expenses)}</span></div><div style="height:12px;background:rgba(168,72,72,.12);border-radius:99px"><div style="height:100%;width:${stats.income>0?Math.min(stats.expenses/stats.income*100,100):0}%;background:var(--red);border-radius:99px"></div></div></div></div>${renderInsights()}${(function(){
@@ -1117,7 +1167,7 @@ function renderDashboard(el){const now=new Date();const s=new Date(now.getFullYe
     +'<div style="font-size:9px;font-weight:600;color:var(--t2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px">Net today</div>'
     +'<div style="font-size:14px;font-weight:800;font-family:var(--mono);color:'+(todayNet>=0?'var(--green)':'var(--red)')+'">'+(todayNet>=0?'+':'')+fmt(todayNet)+'</div></div>'
     +'</div>';
-})()}<div class="sh"><span class="st">Recent</span><button class="sl" id="rec-expand">Show more</button></div><div class="card" style="padding:0 13px" id="rec-card">${TX.length===0?'<div class="empty"><p>No transactions yet.<br>Tap + to add your first one.</p></div>':TX.slice(0,3).map((t,i)=>txRow(t,i)).join('')}</div>${topExp.length>0?`<div class="sh" style="margin-top:4px"><span class="st">${dashDonutType==='expense'?'Spending':'Income'} this month</span><div style="display:flex;gap:4px"><button class="dtoggle${dashDonutType==='expense'?' on':''}" data-dashdonut="expense" style="font-size:10px;padding:3px 9px;border-radius:6px;border:1px solid var(--border2);background:${dashDonutType==='expense'?'var(--red-s)':'transparent'};color:${dashDonutType==='expense'?'var(--red)':'var(--t2)'};cursor:pointer;font-family:var(--font);font-weight:600">Expenses</button><button class="dtoggle${dashDonutType==='income'?' on':''}" data-dashdonut="income" style="font-size:10px;padding:3px 9px;border-radius:6px;border:1px solid var(--border2);background:${dashDonutType==='income'?'var(--green-s)':'transparent'};color:${dashDonutType==='income'?'var(--green)':'var(--t2)'};cursor:pointer;font-family:var(--font);font-weight:600">Income</button></div></div><div class="card" style="padding:14px"><div style="display:flex;align-items:center;gap:14px"><div style="flex-shrink:0">${(function(){var isExp=dashDonutType==='expense';var src=isExp?topExp:topInc;var tot=isExp?expTotal:incTotal;return iDonut(src.map(([id,v])=>{const cat=getCat(id);return{c:cat.Colour,v:v,n:cat.Name};}),fmt(tot),isExp?'expenses':'income','dash-donut');})()}</div><div style="flex:1;min-width:0">${(dashDonutType==='expense'?topExp:topInc).map(([id,v])=>{const c=getCat(id);const tot=dashDonutType==='expense'?expTotal:incTotal;const pct=tot>0?(v/tot*100).toFixed(0):0;return`<div style="display:flex;align-items:center;gap:9px;padding:6px 0;border-bottom:1px solid var(--border2)"><div style="width:6px;height:6px;border-radius:50%;background:${c.Colour};flex-shrink:0"></div><div style="flex:1"><div style="font-size:12px;font-weight:500;margin-bottom:3px">${c.Name}</div><div style="height:2px;background:var(--bg-input);border-radius:99px"><div style="height:100%;width:${pct}%;background:${c.Colour};border-radius:99px"></div></div></div><div style="font-size:14px;font-weight:700;font-family:var(--mono);color:${dashDonutType==='expense'?'var(--red)':'var(--green)'}">${dashDonutType==='expense'?'-':'+'}${fmt(v)}</div></div>`;}).join('')}</div></div></div>`:''}${upPlan.length>0?`<div class="sh" style="margin-top:4px"><span class="st">Upcoming payments</span><button class="sl" onclick="document.querySelector('[data-p=planning]').click()">See all</button></div><div class="card" style="padding:4px 13px">${upPlan.map(p=>{const isInc=[].concat(CATS.income).find(function(cat){return cat.ID===p.Category||cat.Name===p.Category;});const amtCol=isInc?'var(--green)':'var(--red)';const sign=isInc?'+':'-';const iconCol=isInc?'#2db56e':'#e05252';const iconBg=isInc?'rgba(45,181,110,.1)':'rgba(224,82,82,.1)';const u=p.days<0?'var(--red)':p.days<=3?'var(--amber)':'var(--t2)';return`<div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--border2)"><div style="width:30px;height:30px;border-radius:8px;background:${iconBg};display:flex;align-items:center;justify-content:center"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="${iconCol}" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12,6 12,12 16,14"/></svg></div><div style="flex:1"><div style="font-size:12px;font-weight:500">${p.Name}</div><div style="font-size:10px;color:${u};margin-top:1px">${daysLabel(p.NextDate)}</div></div><div style="font-size:14px;font-weight:700;font-family:var(--mono);color:${amtCol}">${sign}${fmt(p.Amount,p.Currency)}</div></div>`;}).join('')}</div>`:''}${(function(){
+})()}<div class="sh"><span class="st">Recent</span><button class="sl" id="rec-expand">Show more</button></div><div class="card" style="padding:0 13px" id="rec-card">${TX.length===0?'<div class="empty"><p>No transactions yet.<br>Tap + to add your first one.</p></div>':TX.slice(0,3).map((t,i)=>txRow(t,i)).join('')}</div>${renderInsights()}${topExp.length>0?`<div class="sh" style="margin-top:4px"><span class="st">${dashDonutType==='expense'?'Spending':'Income'} this month</span><div style="display:flex;gap:4px"><button class="dtoggle${dashDonutType==='expense'?' on':''}" data-dashdonut="expense" style="font-size:10px;padding:3px 9px;border-radius:6px;border:1px solid var(--border2);background:${dashDonutType==='expense'?'var(--red-s)':'transparent'};color:${dashDonutType==='expense'?'var(--red)':'var(--t2)'};cursor:pointer;font-family:var(--font);font-weight:600">Expenses</button><button class="dtoggle${dashDonutType==='income'?' on':''}" data-dashdonut="income" style="font-size:10px;padding:3px 9px;border-radius:6px;border:1px solid var(--border2);background:${dashDonutType==='income'?'var(--green-s)':'transparent'};color:${dashDonutType==='income'?'var(--green)':'var(--t2)'};cursor:pointer;font-family:var(--font);font-weight:600">Income</button></div></div><div class="card" style="padding:14px"><div style="display:flex;align-items:center;gap:14px"><div style="flex-shrink:0">${(function(){var isExp=dashDonutType==='expense';var src=isExp?topExp:topInc;var tot=isExp?expTotal:incTotal;return iDonut(src.map(([id,v])=>{const cat=getCat(id);return{c:cat.Colour,v:v,n:cat.Name};}),fmt(tot),isExp?'expenses':'income','dash-donut');})()}</div><div style="flex:1;min-width:0">${(dashDonutType==='expense'?topExp:topInc).map(([id,v])=>{const c=getCat(id);const tot=dashDonutType==='expense'?expTotal:incTotal;const pct=tot>0?(v/tot*100).toFixed(0):0;return`<div style="display:flex;align-items:center;gap:9px;padding:6px 0;border-bottom:1px solid var(--border2)"><div style="width:6px;height:6px;border-radius:50%;background:${c.Colour};flex-shrink:0"></div><div style="flex:1"><div style="font-size:12px;font-weight:500;margin-bottom:3px">${c.Name}</div><div style="height:2px;background:var(--bg-input);border-radius:99px"><div style="height:100%;width:${pct}%;background:${c.Colour};border-radius:99px"></div></div></div><div style="font-size:14px;font-weight:700;font-family:var(--mono);color:${dashDonutType==='expense'?'var(--red)':'var(--green)'}">${dashDonutType==='expense'?'-':'+'}${fmt(v)}</div></div>`;}).join('')}</div></div></div>`:''}${upPlan.length>0?`<div class="sh" style="margin-top:4px"><span class="st">Upcoming payments</span><button class="sl" onclick="document.querySelector('[data-p=planning]').click()">See all</button></div><div class="card" style="padding:4px 13px">${upPlan.map(p=>{const isInc=[].concat(CATS.income).find(function(cat){return cat.ID===p.Category||cat.Name===p.Category;});const amtCol=isInc?'var(--green)':'var(--red)';const sign=isInc?'+':'-';const iconCol=isInc?'#2db56e':'#e05252';const iconBg=isInc?'rgba(45,181,110,.1)':'rgba(224,82,82,.1)';const u=p.days<0?'var(--red)':p.days<=3?'var(--amber)':'var(--t2)';return`<div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--border2)"><div style="width:30px;height:30px;border-radius:8px;background:${iconBg};display:flex;align-items:center;justify-content:center"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="${iconCol}" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12,6 12,12 16,14"/></svg></div><div style="flex:1"><div style="font-size:12px;font-weight:500">${p.Name}</div><div style="font-size:10px;color:${u};margin-top:1px">${daysLabel(p.NextDate)}</div></div><div style="font-size:14px;font-weight:700;font-family:var(--mono);color:${amtCol}">${sign}${fmt(p.Amount,p.Currency)}</div></div>`;}).join('')}</div>`:''}${(function(){
   var now=new Date();
   var mStart=new Date(now.getFullYear(),now.getMonth(),1);
   var selAcc=trendAcc;
@@ -1202,6 +1252,7 @@ function renderDashboard(el){const now=new Date();const s=new Date(now.getFullYe
   setTimeout(function(){document.addEventListener('click',function rm(e){if(!drop.contains(e.target)&&e.target!==btn){drop.remove();document.removeEventListener('click',rm);}});},50);
 });
   reorderDashboard();
+  setupInsightCarousel();
 }
 // Shared budget bar renderer — used on dashboard and planning.
 // spent = amount already spent this period; lim = budget limit;
