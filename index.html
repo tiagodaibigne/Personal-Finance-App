@@ -1065,126 +1065,117 @@ function insightIcon(it,col){
   return '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="'+col+'" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">'+(m[it.iconName]||m.gbp)+'</svg>';
 }
 
-// How many insights are unlocked grows with time spent in the app this session.
-// Starts at 3; +1 every UNLOCK_INTERVAL ms of being on the dashboard.
-var INSIGHT_BASE=3, INSIGHT_UNLOCK_MS=25000;
-function insightsUnlockedCount(total){
-  var firstSeen=window.__insightsSessionStart||(window.__insightsSessionStart=Date.now());
-  var elapsed=Date.now()-firstSeen;
-  var extra=Math.floor(elapsed/INSIGHT_UNLOCK_MS);
-  return Math.min(total,INSIGHT_BASE+extra);
-}
+
 
 function renderInsights(){
   var ins=computeInsights();
   if(!ins.length) return '';
   window.__allInsights=ins;
   var tone={good:'#2db56e',neutral:'#6f9ae8'};
-  // Which insights have already been seen this device (persisted)
   var seen={};try{seen=JSON.parse(localStorage.getItem('insightsSeen')||'{}');}catch(e){}
-  var unlocked=insightsUnlockedCount(ins.length);
-  var shown=ins.slice(0,unlocked);
-  var slides=shown.map(function(it,i){
+  // Rolling window: the carousel holds at most 3 insights at a time.
+  // We render up to 3 to start; the controller swaps them on a rolling basis.
+  var WINDOW=3;
+  var initial=ins.slice(0,Math.min(WINDOW,ins.length));
+  function slideHtml(it,i,visible){
     var col=it.catId?(getCat(it.catId).Colour||'#6f9ae8'):tone[it.tone];
     var isNew=!seen[it.key];
-    return '<div class="insight-slide'+(isNew?' is-new':'')+'" data-idx="'+i+'" data-key="'+it.key+'" data-new="'+(isNew?'1':'0')+'" style="'+(i===0?'':'display:none;')+'">'
+    return '<div class="insight-slide'+(isNew?' is-new':'')+'" data-key="'+it.key+'" data-new="'+(isNew?'1':'0')+'" style="'+(visible?'':'display:none;')+'">'
       +'<div class="insight-inner">'
       +'<div style="display:flex;gap:11px;align-items:flex-start">'
       +'<div style="width:32px;height:32px;border-radius:9px;background:'+col+'1e;display:flex;align-items:center;justify-content:center;flex-shrink:0">'+insightIcon(it,col)+'</div>'
       +'<div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:600;margin-bottom:3px">'+it.title+'</div>'
       +'<div style="font-size:11.5px;color:var(--t2);line-height:1.5">'+it.body+'</div></div>'
       +'</div></div></div>';
-  }).join('');
-  var dots=shown.map(function(it,i){return '<button class="insight-dot'+(i===0?' on':'')+'" data-dot="'+i+'"></button>';}).join('');
-  return '<div class="sh" style="margin-top:4px"><span class="st">Insights</span><span style="font-size:10px;color:var(--t2)" id="insight-count">'+shown.length+(unlocked<ins.length?' · more soon':'')+'</span></div>'
-    +'<div class="insight-carousel" id="insight-carousel" data-count="'+shown.length+'" data-total="'+ins.length+'">'
+  }
+  var slides=initial.map(function(it,i){return slideHtml(it,i,i===0);}).join('');
+  var dots=initial.map(function(it,i){return '<button class="insight-dot'+(i===0?' on':'')+'" data-dot="'+i+'"></button>';}).join('');
+  return '<div class="sh" style="margin-top:4px"><span class="st">Insights</span><span style="font-size:10px;color:var(--t2)">'+(ins.length>WINDOW?'rotating':ins.length+' for you')+'</span></div>'
+    +'<div class="insight-carousel" id="insight-carousel" data-total="'+ins.length+'" data-window="'+WINDOW+'">'
     +'<div class="insight-track">'+slides+'</div>'
     +'<div class="insight-dots" id="insight-dots">'+dots+'</div>'
     +'</div>';
 }
 
+// Carousel: max 3 on screen (a rolling window over the full insight pool).
+// Auto-advances slowly; on each advance, if there are more than 3 insights total,
+// the oldest visible card is replaced by the next unseen one from the pool (rolling).
+// New (unseen) insights show the shimmer ring on their first appearance.
 function setupInsightCarousel(){
   var car=document.getElementById('insight-carousel');
   if(!car)return;
-  var count=parseInt(car.dataset.count)||0;
-  var total=parseInt(car.dataset.total)||count;
-  var cur=0,userControlled=false,timer=null,unlockTimer=null;
-  function refresh(){
-    var slides=car.querySelectorAll('.insight-slide');
-    var dots=car.querySelectorAll('.insight-dot');
-    return {slides:slides,dots:dots};
+  var all=window.__allInsights||[];
+  var total=all.length;
+  var WINDOW=parseInt(car.dataset.window)||3;
+  if(!total)return;
+  var tone={good:'#2db56e',neutral:'#6f9ae8'};
+  var track=car.querySelector('.insight-track');
+  var dotsWrap=document.getElementById('insight-dots');
+  var cur=0;            // index of the visible card within the current window
+  var poolPos=Math.min(WINDOW,total); // next index in the full pool to bring in
+  var userControlled=false,timer=null;
+
+  function markSeen(key){try{var s=JSON.parse(localStorage.getItem('insightsSeen')||'{}');s[key]=1;localStorage.setItem('insightsSeen',JSON.stringify(s));}catch(e){}}
+  function buildSlide(it){
+    var col=it.catId?(getCat(it.catId).Colour||'#6f9ae8'):tone[it.tone];
+    var seen={};try{seen=JSON.parse(localStorage.getItem('insightsSeen')||'{}');}catch(e){}
+    var isNew=!seen[it.key];
+    var div=document.createElement('div');
+    div.className='insight-slide'+(isNew?' is-new':'');
+    div.dataset.key=it.key;div.dataset.new=isNew?'1':'0';div.style.display='none';
+    div.innerHTML='<div class="insight-inner"><div style="display:flex;gap:11px;align-items:flex-start"><div style="width:32px;height:32px;border-radius:9px;background:'+col+'1e;display:flex;align-items:center;justify-content:center;flex-shrink:0">'+insightIcon(it,col)+'</div><div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:600;margin-bottom:3px">'+it.title+'</div><div style="font-size:11.5px;color:var(--t2);line-height:1.5">'+it.body+'</div></div></div></div>';
+    return div;
   }
-  function markSeen(key){
-    try{var s=JSON.parse(localStorage.getItem('insightsSeen')||'{}');s[key]=1;localStorage.setItem('insightsSeen',JSON.stringify(s));}catch(e){}
+  function visibleSlides(){return Array.prototype.slice.call(track.querySelectorAll('.insight-slide'));}
+  function syncDots(){
+    var n=visibleSlides().length;
+    dotsWrap.innerHTML='';
+    for(var i=0;i<n;i++){
+      var b=document.createElement('button');b.className='insight-dot'+(i===cur?' on':'');b.dataset.dot=i;
+      b.addEventListener('click',(function(idx){return function(){takeControl();show(idx);};})(i));
+      dotsWrap.appendChild(b);
+    }
   }
-  function show(i,animate){
-    var r=refresh();var n=r.slides.length;if(!n)return;
+  function show(i){
+    var sl=visibleSlides();var n=sl.length;if(!n)return;
     cur=(i+n)%n;
-    r.slides.forEach(function(s,si){
+    sl.forEach(function(s,si){
       if(si===cur){
         s.style.display='';
-        if(animate){s.classList.remove('slide-in');void s.offsetWidth;s.classList.add('slide-in');}
-        // Once shown, after its first appearance, drop the "new" ring and remember it
-        var key=s.dataset.key;
-        if(s.dataset.new==='1'){
-          // keep ring during this first viewing, then clear shortly after
-          setTimeout(function(){s.classList.remove('is-new');s.dataset.new='0';markSeen(key);},4000);
-        }
+        s.classList.remove('slide-in');void s.offsetWidth;s.classList.add('slide-in');
+        if(s.dataset.new==='1'){var key=s.dataset.key;setTimeout(function(){s.classList.remove('is-new');s.dataset.new='0';markSeen(key);},4000);}
       } else { s.style.display='none'; }
     });
-    r.dots.forEach(function(dn,di){dn.classList.toggle('on',di===cur);});
+    syncDots();
   }
-  function auto(){timer=setInterval(function(){if(!userControlled){var r=refresh();show(cur+1,true);}},9000);}
+  // Rolling advance: bring in the next pool item, drop the oldest, keep window at WINDOW
+  function rollAdvance(){
+    if(total<=WINDOW){show(cur+1);return;} // nothing to roll, just cycle
+    var sl=visibleSlides();
+    // Remove the first (oldest) slide
+    var oldest=sl[0];if(oldest)track.removeChild(oldest);
+    // Append the next pool item (wrap around the pool)
+    var it=all[poolPos%total];poolPos++;
+    track.appendChild(buildSlide(it));
+    // Show the newest (last) card
+    cur=visibleSlides().length-1;
+    show(cur);
+  }
+  function auto(){timer=setInterval(function(){if(!userControlled)rollAdvance();},9000);}
   function stopAuto(){if(timer){clearInterval(timer);timer=null;}}
   function takeControl(){if(!userControlled){userControlled=true;car.classList.add('user');stopAuto();}}
 
-  // Progressive unlock: every INSIGHT_UNLOCK_MS, if more insights exist, rebuild dots/slides
-  function maybeUnlock(){
-    var nowUnlocked=insightsUnlockedCount(total);
-    var present=car.querySelectorAll('.insight-slide').length;
-    if(nowUnlocked>present){
-      // Re-render the insights section in place
-      var all=window.__allInsights||[];
-      var tone={good:'#2db56e',neutral:'#6f9ae8'};
-      var seen={};try{seen=JSON.parse(localStorage.getItem('insightsSeen')||'{}');}catch(e){}
-      var track=car.querySelector('.insight-track');
-      var dotsWrap=document.getElementById('insight-dots');
-      for(var i=present;i<nowUnlocked;i++){
-        var it=all[i];if(!it)continue;
-        var col=it.catId?(getCat(it.catId).Colour||'#6f9ae8'):tone[it.tone];
-        var isNew=!seen[it.key];
-        var div=document.createElement('div');
-        div.className='insight-slide'+(isNew?' is-new':'');
-        div.dataset.idx=i;div.dataset.key=it.key;div.dataset.new=isNew?'1':'0';
-        div.style.display='none';
-        div.innerHTML='<div class="insight-inner"><div style="display:flex;gap:11px;align-items:flex-start"><div style="width:32px;height:32px;border-radius:9px;background:'+col+'1e;display:flex;align-items:center;justify-content:center;flex-shrink:0">'+insightIcon(it,col)+'</div><div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:600;margin-bottom:3px">'+it.title+'</div><div style="font-size:11.5px;color:var(--t2);line-height:1.5">'+it.body+'</div></div></div></div>';
-        track.appendChild(div);
-        var dot=document.createElement('button');dot.className='insight-dot';dot.dataset.dot=i;
-        dot.addEventListener('click',function(){takeControl();show(parseInt(this.dataset.dot),true);});
-        dotsWrap.appendChild(dot);
-      }
-      var cntEl=document.getElementById('insight-count');
-      if(cntEl)cntEl.textContent=nowUnlocked+(nowUnlocked<total?' · more soon':'');
-      // If not user-controlled, jump to the newly revealed insight so they notice it
-      if(!userControlled){show(present,true);}
-    }
-    if(nowUnlocked>=total&&unlockTimer){clearInterval(unlockTimer);unlockTimer=null;}
-  }
-
-  // Wire existing dots
-  car.querySelectorAll('.insight-dot').forEach(function(dn){dn.addEventListener('click',function(){takeControl();show(parseInt(dn.dataset.dot),true);});});
-  // Swipe
+  // Swipe + tap
   var sx=null;
   car.addEventListener('touchstart',function(e){sx=e.touches[0].clientX;},{passive:true});
-  car.addEventListener('touchend',function(e){if(sx===null)return;var dx=e.changedTouches[0].clientX-sx;if(Math.abs(dx)>40){takeControl();show(cur+(dx<0?1:-1),true);}sx=null;},{passive:true});
-  car.querySelector('.insight-track').addEventListener('click',function(){takeControl();show(cur+1,true);});
+  car.addEventListener('touchend',function(e){if(sx===null)return;var dx=e.changedTouches[0].clientX-sx;if(Math.abs(dx)>40){takeControl();show(cur+(dx<0?1:-1));}sx=null;},{passive:true});
+  track.addEventListener('click',function(){takeControl();show(cur+1);});
 
-  show(0,true);
-  if(count>1)auto();
-  if(total>count)unlockTimer=setInterval(maybeUnlock,5000);
+  show(0);syncDots();
+  if(total>1)auto();
 }
 
-function renderDashboard(el){const now=new Date();const s=new Date(now.getFullYear(),now.getMonth(),1),e=new Date(now.getFullYear(),now.getMonth()+1,0);const stats=getStats(TX,s,e);const mn=now.toLocaleDateString('en-GB',{month:'long',year:'numeric'});const byCat={};stats.filtered.filter(t=>(t.type||'').toLowerCase()==='expense').forEach(t=>{byCat[t.category]=(byCat[t.category]||0)+Math.abs(parseFloat(t.ref_currency_amount||t.amount)||0);});const expTotal=Object.values(byCat).reduce((a,v)=>a+v,0);const topExp=Object.entries(byCat).sort((a,b)=>b[1]-a[1]).slice(0,8);const byCatInc={};stats.filtered.filter(t=>(t.type||'').toLowerCase()==='income').forEach(t=>{byCatInc[t.category]=(byCatInc[t.category]||0)+Math.abs(parseFloat(t.ref_currency_amount||t.amount)||0);});const incTotal=Object.values(byCatInc).reduce((a,v)=>a+v,0);const topInc=Object.entries(byCatInc).sort((a,b)=>b[1]-a[1]).slice(0,8);const today=new Date();const _td=new Date();_td.setHours(0,0,0,0);const upPlan=PLANNED.map(p=>{const d=new Date((p.NextDate||'').substring(0,10)+'T00:00:00');return{...p,days:Math.round((d-_td)/86400000)};}).filter(p=>p.days>=-7).sort((a,b)=>a.days-b.days).slice(0,5);el.innerHTML=`<div class="ph"><h1 class="pt">Dashboard</h1><div class="hbtns"><button class="hbtn" id="dash-privacy">${hideAmounts?'<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>':'<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>'}</button><button class="hbtn" id="dash-notif"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>${upPlan.some(p=>p.days<=3)?'<div class="badge"></div>':''}</button><button class="hbtn" id="dash-settings"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button></div></div><div class="acc-grid">${ACCOUNTS.map(a=>{const b=getAccBal(a.ID,a.Currency);return`<div class="acc-card"><div><div class="acc-name" style="font-size:13px;font-weight:600;color:var(--t1);margin-bottom:6px">${a.Name}</div><div class="acc-sym" style="background:${a.Colour}18;color:${a.Colour};width:26px;height:26px;border-radius:8px;font-size:13px;font-weight:600;display:flex;align-items:center;justify-content:center">${a.Symbol}</div></div><div class="acc-bal" style="color:${b<0?'var(--red)':'var(--t1)'}">${b<0?'-':''}${fmt(Math.abs(b),a.Currency)}</div></div>`;}).join('')}<div class="acc-card add" id="dash-add-acc" style="cursor:pointer"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Add account</div></div><div class="cf-card"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px"><span style="font-size:10px;font-weight:600;color:var(--t2);text-transform:uppercase;letter-spacing:.7px">Cash Flow</span><span style="font-size:10px;color:var(--t3)">${mn}</span></div><div style="font-size:34px;font-weight:800;font-family:var(--mono);letter-spacing:-.06em;margin-bottom:16px;color:${stats.net>=0?'var(--green)':'var(--red)'}">${stats.net>=0?'+':''}${fmt(stats.net)}</div><div style="margin-bottom:9px"><div style="display:flex;justify-content:space-between;margin-bottom:5px"><span style="font-size:12px;color:var(--t2)">Income</span><span style="font-size:14px;font-weight:700;font-family:var(--mono);color:var(--green)">${fmt(stats.income)}</span></div><div style="height:12px;background:rgba(61,148,104,.15);border-radius:99px"><div style="height:100%;width:100%;background:var(--green);border-radius:99px"></div></div></div><div><div style="display:flex;justify-content:space-between;margin-bottom:5px"><span style="font-size:12px;color:var(--t2)">Expenses</span><span style="font-size:14px;font-weight:700;font-family:var(--mono);color:var(--red)">${fmt(stats.expenses)}</span></div><div style="height:12px;background:rgba(168,72,72,.12);border-radius:99px"><div style="height:100%;width:${stats.income>0?Math.min(stats.expenses/stats.income*100,100):0}%;background:var(--red);border-radius:99px"></div></div></div></div>${renderInsights()}${(function(){
+function renderDashboard(el){const now=new Date();const s=new Date(now.getFullYear(),now.getMonth(),1),e=new Date(now.getFullYear(),now.getMonth()+1,0);const stats=getStats(TX,s,e);const mn=now.toLocaleDateString('en-GB',{month:'long',year:'numeric'});const byCat={};stats.filtered.filter(t=>(t.type||'').toLowerCase()==='expense').forEach(t=>{byCat[t.category]=(byCat[t.category]||0)+Math.abs(parseFloat(t.ref_currency_amount||t.amount)||0);});const expTotal=Object.values(byCat).reduce((a,v)=>a+v,0);const topExp=Object.entries(byCat).sort((a,b)=>b[1]-a[1]).slice(0,8);const byCatInc={};stats.filtered.filter(t=>(t.type||'').toLowerCase()==='income').forEach(t=>{byCatInc[t.category]=(byCatInc[t.category]||0)+Math.abs(parseFloat(t.ref_currency_amount||t.amount)||0);});const incTotal=Object.values(byCatInc).reduce((a,v)=>a+v,0);const topInc=Object.entries(byCatInc).sort((a,b)=>b[1]-a[1]).slice(0,8);const today=new Date();const _td=new Date();_td.setHours(0,0,0,0);const upPlan=PLANNED.map(p=>{const d=new Date((p.NextDate||'').substring(0,10)+'T00:00:00');return{...p,days:Math.round((d-_td)/86400000)};}).filter(p=>p.days>=-7).sort((a,b)=>a.days-b.days).slice(0,5);el.innerHTML=`<div class="ph"><h1 class="pt">Dashboard</h1><div class="hbtns"><button class="hbtn" id="dash-privacy">${hideAmounts?'<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>':'<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>'}</button><button class="hbtn" id="dash-notif"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>${upPlan.some(p=>p.days<=3)?'<div class="badge"></div>':''}</button><button class="hbtn" id="dash-settings"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button></div></div><div class="acc-grid">${ACCOUNTS.map(a=>{const b=getAccBal(a.ID,a.Currency);return`<div class="acc-card"><div><div class="acc-name" style="font-size:13px;font-weight:600;color:var(--t1);margin-bottom:6px">${a.Name}</div><div class="acc-sym" style="background:${a.Colour}18;color:${a.Colour};width:26px;height:26px;border-radius:8px;font-size:13px;font-weight:600;display:flex;align-items:center;justify-content:center">${a.Symbol}</div></div><div class="acc-bal" style="color:${b<0?'var(--red)':'var(--t1)'}">${b<0?'-':''}${fmt(Math.abs(b),a.Currency)}</div></div>`;}).join('')}<div class="acc-card add" id="dash-add-acc" style="cursor:pointer"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Add account</div></div><div class="cf-card"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px"><span style="font-size:10px;font-weight:600;color:var(--t2);text-transform:uppercase;letter-spacing:.7px">Cash Flow</span><span style="font-size:10px;color:var(--t3)">${mn}</span></div><div style="font-size:34px;font-weight:800;font-family:var(--mono);letter-spacing:-.06em;margin-bottom:16px;color:${stats.net>=0?'var(--green)':'var(--red)'}">${stats.net>=0?'+':''}${fmt(stats.net)}</div><div style="margin-bottom:9px"><div style="display:flex;justify-content:space-between;margin-bottom:5px"><span style="font-size:12px;color:var(--t2)">Income</span><span style="font-size:14px;font-weight:700;font-family:var(--mono);color:var(--green)">${fmt(stats.income)}</span></div><div style="height:12px;background:rgba(61,148,104,.15);border-radius:99px"><div style="height:100%;width:100%;background:var(--green);border-radius:99px"></div></div></div><div><div style="display:flex;justify-content:space-between;margin-bottom:5px"><span style="font-size:12px;color:var(--t2)">Expenses</span><span style="font-size:14px;font-weight:700;font-family:var(--mono);color:var(--red)">${fmt(stats.expenses)}</span></div><div style="height:12px;background:rgba(168,72,72,.12);border-radius:99px"><div style="height:100%;width:${stats.income>0?Math.min(stats.expenses/stats.income*100,100):0}%;background:var(--red);border-radius:99px"></div></div></div></div>${(function(){
   var todayStr=new Date().toLocaleDateString('en-CA');
   var todayTxs=TX.filter(function(tx){return(tx.date||'').substring(0,10)===todayStr;});
   if(!todayTxs.length)return '';
