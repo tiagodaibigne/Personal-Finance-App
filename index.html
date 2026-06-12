@@ -866,7 +866,7 @@ function setupLineChartHover(){
 
 function getDashOrder(){
   try{var s=localStorage.getItem('dashOrder');if(s){var a=JSON.parse(s);if(Array.isArray(a))return a;}}catch(e){}
-  return ['recent','spending','upcoming','trend','budgets'];
+  return ['recent','insights','spending','upcoming','trend','budgets'];
 }
 function setDashOrder(arr){localStorage.setItem('dashOrder',JSON.stringify(arr));}
 
@@ -879,6 +879,7 @@ function reorderDashboard(){
   };
   function classify(headerText){
     var t=(headerText||'').toLowerCase();
+    if(t.indexOf('insights')>=0)return 'insights';
     if(t.indexOf('recent')>=0)return 'recent';
     if(t.indexOf('spending')>=0||t.indexOf('income this month')>=0)return 'spending';
     if(t.indexOf('upcoming')>=0)return 'upcoming';
@@ -925,7 +926,7 @@ function reorderDashboard(){
 
 function openCustomiseDash(){
   var order=getDashOrder();
-  var names={recent:'Recent transactions',spending:'Spending / Income',upcoming:'Upcoming payments',trend:'Balance trend',budgets:'Budgets'};
+  var names={recent:'Recent transactions',insights:'Insights',spending:'Spending / Income',upcoming:'Upcoming payments',trend:'Balance trend',budgets:'Budgets'};
   var overlay=document.createElement('div');
   overlay.className='overlay';overlay.style.zIndex='320';
   function rowsHTML(){
