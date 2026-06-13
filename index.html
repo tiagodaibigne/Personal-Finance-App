@@ -13,7 +13,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&family=Geist+Mono:wght@300;400;500;600&display=swap" rel="stylesheet"/>
 <style>
-:root{--bg:#0c0c0c;--bg-card:#1a1a1a;--bg-card2:#222222;--bg-input:#181818;--border:#2a2a2a;--border2:#202020;--t1:#dedede;--t2:#6a6a6a;--t3:#3e3e3e;--blue:#4672c4;--blue-s:rgba(70,114,196,.1);--green:#2db56e;--green-s:rgba(45,181,110,.1);--red:#e05252;--red-s:rgba(224,82,82,.1);--amber:#a87838;--purple:#7258a8;--nav:56px;--r:14px;--rsm:9px;--rxl:20px;--font:'DM Sans',sans-serif;--mono:'Geist Mono','DM Mono',monospace;--ease:cubic-bezier(.4,0,.2,1);--spring:cubic-bezier(.34,1.2,.64,1);--safe-top:max(env(safe-area-inset-top,0px),12px);--safe-bottom:env(safe-area-inset-bottom,0px);--nav-bg:rgba(12,12,12,.92);--ni-inactive:#8a8a8a;--hbtn-icon:#b8b8b8}
+:root{--bg:#0c0c0c;--bg-card:#1a1a1a;--bg-card2:#222222;--bg-input:#181818;--border:#2a2a2a;--border2:#202020;--t1:#dedede;--t2:#6a6a6a;--t3:#3e3e3e;--blue:#4672c4;--blue-s:rgba(70,114,196,.1);--green:#2db56e;--green-s:rgba(45,181,110,.1);--red:#e05252;--red-s:rgba(224,82,82,.1);--amber:#a87838;--purple:#7258a8;--nav:56px;--r:14px;--rsm:9px;--rxl:20px;--font:'DM Sans',sans-serif;--mono:'Geist Mono','DM Mono',monospace;--ease:cubic-bezier(.4,0,.2,1);--spring:cubic-bezier(.34,1.2,.64,1);--safe-top:max(env(safe-area-inset-top,0px),12px);--safe-bottom:min(env(safe-area-inset-bottom,0px),8px);--nav-bg:rgba(12,12,12,.92);--ni-inactive:#8a8a8a;--hbtn-icon:#b8b8b8}
 /* ── LIGHT THEME ── warm off-white, not pure white, easy on the eyes ── */
 [data-theme="light"]{
   --bg:#f4f2ee;            /* warm off-white page background */
@@ -47,8 +47,8 @@
 [data-theme="light"] .card,[data-theme="light"] .insight-inner{box-shadow:0 1px 3px rgba(0,0,0,.04)}
 
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;font-variant-numeric:tabular-nums;font-feature-settings:"tnum" 1,"zero" 0;-webkit-font-feature-settings:"tnum" 1,"zero" 0}
-html,body{height:100%;margin:0;padding:0;background:var(--bg);font-family:var(--font);color:var(--t1);-webkit-font-smoothing:antialiased;overflow:hidden;position:fixed;width:100%;top:0;left:0;bottom:0}
-#app{height:100%;display:flex;flex-direction:column;max-width:430px;margin:0 auto;position:relative;overflow:hidden;background:var(--bg)}
+html,body{margin:0;padding:0;background:var(--bg);font-family:var(--font);color:var(--t1);-webkit-font-smoothing:antialiased;overflow:hidden;position:fixed;top:0;left:0;right:0;bottom:0}
+#app{position:absolute;top:0;bottom:0;left:0;right:0;display:flex;flex-direction:column;max-width:430px;margin:0 auto;overflow:hidden;background:var(--bg)}
 #splash{position:absolute;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;z-index:999;transition:opacity .4s}
 #splash.hide{opacity:0;pointer-events:none}
 .splash-inner{display:flex;flex-direction:column;align-items:center;gap:16px;animation:si .5s var(--spring) both}
@@ -168,7 +168,7 @@ select.fi{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.o
 .empty{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:36px 20px;color:var(--t2);gap:8px;text-align:center;font-size:14.2px;line-height:1.5}
 .p-avatar{width:60px;height:60px;border-radius:50%;background:var(--blue-s);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;margin:0 auto 10px;font-size:28.3px;font-weight:700;color:var(--blue)}
 
-.insight-carousel{position:relative;border-radius:var(--rsm);margin-bottom:10px;height:92px}
+.insight-carousel{position:relative;border-radius:var(--rsm);margin-bottom:20px}
 .insight-track{position:relative;height:92px}
 .insight-inner{position:relative;background:var(--bg-card);border:1px solid var(--border2);border-radius:var(--rsm);padding:14px;overflow:hidden;z-index:1;height:92px;box-sizing:border-box;display:flex;align-items:center}
 /* Shimmering white ring ONLY while an insight is new (first viewing) */
@@ -182,7 +182,7 @@ select.fi{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.o
   animation:insightShine 2.6s linear infinite;pointer-events:none;
 }
 @keyframes insightShine{0%{background-position:200% 0}100%{background-position:-60% 0}}
-.insight-dots{display:flex;justify-content:center;gap:6px;margin-top:10px;margin-bottom:18px;flex-wrap:wrap}
+.insight-dots{display:flex;justify-content:center;gap:6px;margin-top:10px;flex-wrap:wrap}
 .insight-dot{width:6px;height:6px;border-radius:50%;background:var(--border);border:none;padding:0;cursor:pointer;transition:.25s}
 .insight-dot.on{background:#6f9ae8;width:18px;border-radius:99px}
 /* Smooth slide+fade between insights */
