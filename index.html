@@ -240,10 +240,10 @@ select.fi{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.o
 <script src="https://apis.google.com/js/api.js"></script>
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 <script>
-const CLIENT_ID='10111088927-3tn8gfds8gik5rm3ej24vspfm289dhof.apps.googleusercontent.com';
+const CLIENT_ID='YOUR_GOOGLE_OAUTH_CLIENT_ID_HERE';
 const SHEET_NAME='Personal Budgeting App';
 const ICON_KEYS=['food','coffee','bills','shop','transport','car','trolley','house','heart','health','entertainment','travel','plane','fitness','family','baby','home','edu','salary','invest','savings','income','tax','code','gambling','loss','transfer','other'];
-const SCOPES='https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/drive profile email';
+const SCOPES='https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/drive.file profile email';
 const DISCOVERY=['https://sheets.googleapis.com/$discovery/rest?version=v4','https://www.googleapis.com/discovery/v1/apis/drive/v3/rest'];
 const TX_HEADERS=['account','category','currency','amount','ref_currency_amount','type','payment_type','payment_type_local','note','date','gps_latitude','gps_longitude','gps_accuracy_in_meters','warranty_in_month','transfer','payee','labels','envelope_id','custom_category'];
 let sheetId=null,TX=[],ACCOUNTS=[],CATS={expense:[],income:[],transfer:[]},PLANNED=[],BUDGETS=[],userProfile={},curPage='dashboard',txType='expense',selCat=null,trendAcc=null,hideAmounts=false,dashDonutType='expense',statDonutType='expense',recPeriod='30 days',recMonthOff=0,recCustomFrom='',recCustomTo='',statPeriod='month',statMonthOff=0,statYear=new Date().getFullYear(),statCustomS='2018-07-01',statCustomE=new Date().toISOString().split('T')[0],statView='summary',lastSync=null;
@@ -1642,7 +1642,157 @@ function recordsRangeLabel(){
   return r.start.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'2-digit'})+' – '+r.end.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'2-digit'});
 }
 
-function renderRecords(el){let search='',filter='all';const redraw=()=>{const list=document.getElementById('rec-list');if(!list)return;const rng=getRecordsRange();let txs=TX.filter(tx=>{const cat=getCat(tx.category);const td=new Date((tx.date||'').substring(0,10)+'T12:00:00');const inRng=!isNaN(td)&&td>=rng.start&&td<=rng.end;return inRng&&(filter==='all'||tx.type===filter)&&(!search||`${tx.note} ${tx.payee} ${tx.labels} ${cat.Name}`.toLowerCase().includes(search));});if(!txs.length){list.innerHTML='<div class="empty"><p>No transactions found</p></div>';return;}const g=groupByDate(txs);list.innerHTML=Object.entries(g).map(([date,txs])=>`<div class="dg-lbl">${date}</div><div class="card" style="padding:0 13px">${txs.map(t=>txRow(t,TX.indexOf(t),true)).join('')}</div>`).join('');};el.innerHTML=`<div class="ph"><h1 class="pt">Records</h1></div>
+// Planning filter helpers
+function planIsIncome(p){return p.Category&&[].concat(CATS.income).find(function(cat){return cat.ID===p.Category||cat.Name===p.Category;});}
+function planPasses(p){
+  if(planFilters.type==='income'&&!planIsIncome(p))return false;
+  if(planFilters.type==='expense'&&planIsIncome(p))return false;
+  if(planFilters.recurrence&&(p.Frequency||'')!==planFilters.recurrence)return false;
+  if(planFilters.category&&p.Category!==planFilters.category)return false;
+  return true;
+}
+function planSort(arr){
+  var a=arr.slice();
+  var s=planFilters.sort||'due-asc';
+  if(s==='due-asc')a.sort(function(x,y){return (x.NextDate||'').localeCompare(y.NextDate||'');});
+  else if(s==='due-desc')a.sort(function(x,y){return (y.NextDate||'').localeCompare(x.NextDate||'');});
+  else if(s==='name-az')a.sort(function(x,y){return (x.Name||'').toLowerCase().localeCompare((y.Name||'').toLowerCase());});
+  else if(s==='name-za')a.sort(function(x,y){return (y.Name||'').toLowerCase().localeCompare((x.Name||'').toLowerCase());});
+  return a;
+}
+function openPlanFilterSheet(onApply){
+  var overlay=document.createElement('div');overlay.className='overlay';overlay.style.zIndex='320';
+  var typeOpts=[{val:'',label:'All'},{val:'income',label:'Income'},{val:'expense',label:'Expense'}];
+  // Distinct recurrences in use
+  var recSet={};PLANNED.forEach(function(p){if(p.Frequency)recSet[p.Frequency]=1;});
+  var recOpts=[{val:'',label:'All'}].concat(Object.keys(recSet).map(function(r){return {val:r,label:r};}));
+  // Categories used in planned payments
+  var catSet={};PLANNED.forEach(function(p){if(p.Category)catSet[p.Category]=1;});
+  var catOpts=[{val:'',label:'All'}].concat(Object.keys(catSet).map(function(id){var cat=getCat(id);return {val:id,label:cat.Name,colour:cat.Colour};}));
+  var sortOpts=[{val:'due-asc',label:'Due: soonest'},{val:'due-desc',label:'Due: latest'},{val:'name-az',label:'Name: A–Z'},{val:'name-za',label:'Name: Z–A'}];
+  var body=filterGroup('Type',typeOpts,planFilters.type,'type')
+    +filterGroup('Recurrence',recOpts,planFilters.recurrence,'recurrence')
+    +(catOpts.length>1?filterGroup('Category',catOpts,planFilters.category,'category'):'')
+    +filterGroup('Sort by',sortOpts,planFilters.sort,'sort');
+  overlay.innerHTML='<div class="sheet" style="max-height:85vh;display:flex;flex-direction:column">'
+    +'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">'
+    +'<div style="font-size:17px;font-weight:700">Filter &amp; sort</div>'
+    +'<button id="pflt-close" style="background:var(--bg-input);border:none;color:var(--t1);width:30px;height:30px;border-radius:8px;cursor:pointer;font-size:16px">✕</button></div>'
+    +'<div style="overflow-y:auto;flex:1">'+body+'</div>'
+    +'<div style="display:flex;gap:10px;margin-top:14px"><button class="btn sec" id="pflt-clear" style="flex:1">Reset</button><button class="btn" id="pflt-apply" style="flex:1">Apply</button></div>'
+    +'</div>';
+  document.body.appendChild(overlay);
+  requestAnimationFrame(function(){overlay.classList.add('on');});
+  function close(){overlay.classList.remove('on');setTimeout(function(){overlay.remove();},250);}
+  overlay.addEventListener('click',function(e){if(e.target===overlay)close();});
+  overlay.querySelector('#pflt-close').addEventListener('click',close);
+  overlay.querySelectorAll('.flt-chip').forEach(function(chip){
+    chip.addEventListener('click',function(){
+      var key=chip.dataset.key;planFilters[key]=chip.dataset.val;
+      var group=chip.parentNode;
+      group.querySelectorAll('.flt-chip').forEach(function(x){
+        var on=x.dataset.val===planFilters[key];
+        x.style.border='1px solid '+(on?'var(--blue)':'var(--border2)');
+        x.style.background=on?'var(--blue-s)':'transparent';
+        x.style.color=on?'var(--blue)':'var(--t1)';
+      });
+    });
+  });
+  overlay.querySelector('#pflt-clear').addEventListener('click',function(){planFilters={type:'',recurrence:'',category:'',sort:'due-asc'};close();if(onApply)onApply();});
+  overlay.querySelector('#pflt-apply').addEventListener('click',function(){close();if(onApply)onApply();});
+}
+
+// ═══ SHARED FILTER SYSTEM (Records, Statistics, Planning) ═══
+var txFilters={account:'',category:'',label:'',currency:'',type:'',transfer:''};
+var planFilters={type:'',recurrence:'',category:'',sort:'due-asc'};
+function txFilterActiveCount(){var n=0;for(var k in txFilters){if(txFilters[k])n++;}return n;}
+function planFilterActiveCount(){var n=0;if(planFilters.type)n++;if(planFilters.recurrence)n++;if(planFilters.category)n++;if(planFilters.sort&&planFilters.sort!=='due-asc')n++;return n;}
+// Does a transaction pass the current tx filters?
+function txPassesFilters(tx){
+  var cat=getCat(tx.category);
+  if(txFilters.account&&tx.account!==txFilters.account)return false;
+  if(txFilters.category&&tx.category!==txFilters.category)return false;
+  if(txFilters.currency&&tx.currency!==txFilters.currency)return false;
+  if(txFilters.type&&tx.type!==txFilters.type)return false;
+  if(txFilters.transfer==='only'&&tx.type!=='transfer')return false;
+  if(txFilters.transfer==='exclude'&&tx.type==='transfer')return false;
+  if(txFilters.label){
+    var has=(tx.labels||'').split(',').some(function(l){return l.trim().toLowerCase()===txFilters.label.toLowerCase();});
+    if(!has)return false;
+  }
+  return true;
+}
+// Distinct currencies in use (from accounts + transactions)
+function allCurrenciesInUse(){
+  var set={};
+  ACCOUNTS.forEach(function(a){if(a.Currency)set[a.Currency]=1;});
+  TX.forEach(function(t){if(t.currency)set[t.currency]=1;});
+  return Object.keys(set).sort();
+}
+// Distinct categories across all types
+function allCategories(){
+  var out=[];['expense','income','transfer'].forEach(function(ty){(CATS[ty]||[]).forEach(function(cat){out.push(cat);});});
+  return out;
+}
+// Build a single filter group (label + horizontal scrolling chips). Single-select.
+function filterGroup(title,options,current,dataKey){
+  // options: [{val,label,colour?}]
+  var chips=options.map(function(o){
+    var on=current===o.val;
+    var dot=o.colour?'<span style="width:9px;height:9px;border-radius:50%;background:'+o.colour+';display:inline-block;margin-right:5px;vertical-align:middle"></span>':'';
+    return '<button class="flt-chip" data-key="'+dataKey+'" data-val="'+String(o.val).replace(/"/g,'&quot;')+'" style="flex-shrink:0;font-size:12.5px;padding:7px 13px;border-radius:9px;border:1px solid '+(on?'var(--blue)':'var(--border2)')+';background:'+(on?'var(--blue-s)':'transparent')+';color:'+(on?'var(--blue)':'var(--t1)')+';cursor:pointer;font-family:var(--font);font-weight:600;white-space:nowrap">'+dot+o.label+'</button>';
+  }).join('');
+  return '<div style="margin-bottom:16px"><div style="font-size:12px;color:var(--t2);font-weight:600;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">'+title+'</div>'
+    +'<div style="display:flex;gap:7px;overflow-x:auto;scrollbar-width:none;padding-bottom:3px">'+chips+'</div></div>';
+}
+// Open the transaction filter sheet (used by Records and Statistics)
+function openTxFilterSheet(onApply){
+  var overlay=document.createElement('div');overlay.className='overlay';overlay.style.zIndex='320';
+  var accOpts=[{val:'',label:'All'}].concat(ACCOUNTS.map(function(a){return {val:a.ID,label:a.Name,colour:a.Colour};}));
+  var catOpts=[{val:'',label:'All'}].concat(allCategories().map(function(cat){return {val:cat.ID,label:cat.Name,colour:cat.Colour};}));
+  var curOpts=[{val:'',label:'All'}].concat(allCurrenciesInUse().map(function(cu){return {val:cu,label:cu};}));
+  var typeOpts=[{val:'',label:'All'},{val:'expense',label:'Expense'},{val:'income',label:'Income'},{val:'transfer',label:'Transfer'}];
+  var transferOpts=[{val:'',label:'All'},{val:'only',label:'Transfers only'},{val:'exclude',label:'Exclude transfers'}];
+  var lblOpts=[{val:'',label:'All'}].concat((typeof allLabelsInUse==='function'?allLabelsInUse():[]).map(function(l){return {val:l,label:l};}));
+  var body=filterGroup('Type',typeOpts,txFilters.type,'type')
+    +filterGroup('Account',accOpts,txFilters.account,'account')
+    +filterGroup('Category',catOpts,txFilters.category,'category')
+    +filterGroup('Currency',curOpts,txFilters.currency,'currency')
+    +filterGroup('Transfers',transferOpts,txFilters.transfer,'transfer')
+    +(lblOpts.length>1?filterGroup('Label',lblOpts,txFilters.label,'label'):'');
+  overlay.innerHTML='<div class="sheet" style="max-height:85vh;display:flex;flex-direction:column">'
+    +'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">'
+    +'<div style="font-size:17px;font-weight:700">Filter</div>'
+    +'<button id="flt-close" style="background:var(--bg-input);border:none;color:var(--t1);width:30px;height:30px;border-radius:8px;cursor:pointer;font-size:16px">✕</button></div>'
+    +'<div style="overflow-y:auto;flex:1">'+body+'</div>'
+    +'<div style="display:flex;gap:10px;margin-top:14px"><button class="btn sec" id="flt-clear" style="flex:1">Clear all</button><button class="btn" id="flt-apply" style="flex:1">Apply</button></div>'
+    +'</div>';
+  document.body.appendChild(overlay);
+  requestAnimationFrame(function(){overlay.classList.add('on');});
+  function close(){overlay.classList.remove('on');setTimeout(function(){overlay.remove();},250);}
+  overlay.addEventListener('click',function(e){if(e.target===overlay)close();});
+  overlay.querySelector('#flt-close').addEventListener('click',close);
+  overlay.querySelectorAll('.flt-chip').forEach(function(chip){
+    chip.addEventListener('click',function(){
+      var key=chip.dataset.key;txFilters[key]=chip.dataset.val;
+      // repaint this group's chips
+      var group=chip.parentNode;
+      group.querySelectorAll('.flt-chip').forEach(function(x){
+        var on=x.dataset.val===txFilters[key];
+        x.style.border='1px solid '+(on?'var(--blue)':'var(--border2)');
+        x.style.background=on?'var(--blue-s)':'transparent';
+        x.style.color=on?'var(--blue)':'var(--t1)';
+      });
+    });
+  });
+  overlay.querySelector('#flt-clear').addEventListener('click',function(){
+    txFilters={account:'',category:'',label:'',currency:'',type:'',transfer:''};
+    close();if(onApply)onApply();
+  });
+  overlay.querySelector('#flt-apply').addEventListener('click',function(){close();if(onApply)onApply();});
+}
+
+function renderRecords(el){let search='',filter='all';const redraw=()=>{const list=document.getElementById('rec-list');if(!list)return;const rng=getRecordsRange();let txs=TX.filter(tx=>{const cat=getCat(tx.category);const td=new Date((tx.date||'').substring(0,10)+'T12:00:00');const inRng=!isNaN(td)&&td>=rng.start&&td<=rng.end;return inRng&&txPassesFilters(tx)&&(filter==='all'||tx.type===filter)&&(!search||`${tx.note} ${tx.payee} ${tx.labels} ${cat.Name}`.toLowerCase().includes(search));});if(!txs.length){list.innerHTML='<div class="empty"><p>No transactions found</p></div>';return;}const g=groupByDate(txs);list.innerHTML=Object.entries(g).map(([date,txs])=>`<div class="dg-lbl">${date}</div><div class="card" style="padding:0 13px">${txs.map(t=>txRow(t,TX.indexOf(t),true)).join('')}</div>`).join('');};el.innerHTML=`<div class="ph"><h1 class="pt">Records</h1></div>
   <div class="rec-period" style="display:flex;gap:6px;overflow-x:auto;padding-bottom:8px;margin-bottom:4px;scrollbar-width:none">
     ${['7 days','30 days','This month','6 months','12 months','1 year','Custom'].map(function(p){return '<button class="rec-per-btn'+(recPeriod===p?' on':'')+'" data-per="'+p+'" style="flex-shrink:0;font-size:12px;padding:6px 12px;border-radius:8px;border:1px solid '+(recPeriod===p?'var(--blue)':'var(--border2)')+';background:'+(recPeriod===p?'var(--blue-s)':'transparent')+';color:'+(recPeriod===p?'var(--blue)':'var(--t2)')+';cursor:pointer;font-family:var(--font);font-weight:600;white-space:nowrap">'+p+'</button>';}).join('')}
   </div>
@@ -1655,7 +1805,11 @@ function renderRecords(el){let search='',filter='all';const redraw=()=>{const li
     <input type="date" id="rec-from" value="${recCustomFrom||''}" style="flex:1;background:var(--bg-input);border:1px solid var(--border2);border-radius:8px;padding:7px;color:var(--t1);font-family:var(--font);font-size:12px;color-scheme:dark"/>
     <input type="date" id="rec-to" value="${recCustomTo||''}" style="flex:1;background:var(--bg-input);border:1px solid var(--border2);border-radius:8px;padding:7px;color:var(--t1);font-family:var(--font);font-size:12px;color-scheme:dark"/>
   </div>
-  <div class="srch"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#3a3a3a" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input id="rec-search" placeholder="Search notes, payee, labels…"/></div><div class="fchips"><button class="fc on" data-f="all">All</button><button class="fc" data-f="expense">Expenses</button><button class="fc" data-f="income">Income</button><button class="fc" data-f="transfer">Transfers</button></div><div id="rec-list"></div>`;document.getElementById('rec-search').addEventListener('input',e=>{search=e.target.value.toLowerCase();redraw();});el.querySelectorAll('.fc').forEach(fc=>fc.addEventListener('click',()=>{el.querySelectorAll('.fc').forEach(f=>f.classList.remove('on'));fc.classList.add('on');filter=fc.dataset.f;redraw();}));
+  <div class="srch"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#3a3a3a" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input id="rec-search" placeholder="Search notes, payee, labels…"/></div><button id="rec-filter-btn" style="display:flex;align-items:center;gap:7px;width:100%;justify-content:center;background:var(--bg-card);border:1px solid var(--border2);border-radius:var(--rsm);padding:9px;margin-bottom:10px;cursor:pointer;color:var(--t1);font-family:var(--font);font-size:13.5px;font-weight:600"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg><span id="rec-filter-label">Filter</span></button><div class="fchips"><button class="fc on" data-f="all">All</button><button class="fc" data-f="expense">Expenses</button><button class="fc" data-f="income">Income</button><button class="fc" data-f="transfer">Transfers</button></div><div id="rec-list"></div>`;document.getElementById('rec-search').addEventListener('input',e=>{search=e.target.value.toLowerCase();redraw();});
+  // Filter button -> open the shared tx filter sheet
+  function updRecFilterLabel(){var lb=document.getElementById('rec-filter-label');if(lb){var n=txFilterActiveCount();lb.textContent=n>0?('Filter ('+n+')'):'Filter';}}
+  document.getElementById('rec-filter-btn')?.addEventListener('click',function(){openTxFilterSheet(function(){updRecFilterLabel();redraw();});});
+  updRecFilterLabel();el.querySelectorAll('.fc').forEach(fc=>fc.addEventListener('click',()=>{el.querySelectorAll('.fc').forEach(f=>f.classList.remove('on'));fc.classList.add('on');filter=fc.dataset.f;redraw();}));
   // Back to dashboard
   
   // Period buttons
@@ -1696,7 +1850,7 @@ function getStatLabel(){const now=new Date();if(statPeriod==='month'){const d=ne
 function getEarliestYear(){return TX.length?Math.min(...TX.map(t=>new Date(t.date).getFullYear())):new Date().getFullYear();}
 function renderStatistics(el){
   var range=getStatRange();
-  var stats=getStats(TX,range.start,range.end);
+  var stats=getStats(TX.filter(txPassesFilters),range.start,range.end);
   var savRate=stats.income>0?((stats.net/stats.income)*100).toFixed(1):'0.0';
   var label=getStatLabel();
   var earliestYear=getEarliestYear(),thisYear=new Date().getFullYear();
@@ -1715,6 +1869,7 @@ function renderStatistics(el){
     +'<button class="pt2'+(statPeriod==='custom'?' on':'')+'" data-per="custom">Range</button>'
     +'<button class="pt2'+(statPeriod==='all'?' on':'')+'" data-per="all">All time</button>'
     +'</div>';
+  html+='<button id="stat-filter-btn" style="display:flex;align-items:center;gap:7px;width:100%;justify-content:center;background:var(--bg-card);border:1px solid var(--border2);border-radius:var(--rsm);padding:9px;margin-bottom:12px;cursor:pointer;color:var(--t1);font-family:var(--font);font-size:13.5px;font-weight:600"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg><span id="stat-filter-label">Filter</span></button>';
 
   var prevSVG='<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><polyline points="15,18 9,12 15,6"/></svg>';
   var nextSVG='<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><polyline points="9,18 15,12 9,6"/></svg>';
@@ -1895,6 +2050,8 @@ function renderStatistics(el){
   }
 
   el.querySelectorAll('.pt2[data-per]').forEach(function(b){b.addEventListener('click',function(){statPeriod=b.dataset.per;renderStatistics(el);});});
+  (function(){var lb=document.getElementById('stat-filter-label');if(lb){var n=txFilterActiveCount();lb.textContent=n>0?('Filter ('+n+')'):'Filter';}
+    document.getElementById('stat-filter-btn')?.addEventListener('click',function(){openTxFilterSheet(function(){renderStatistics(el);});});})();
   document.getElementById('sp')&&document.getElementById('sp').addEventListener('click',function(){statMonthOff--;renderStatistics(el);});
   document.getElementById('sn')&&document.getElementById('sn').addEventListener('click',function(){if(statMonthOff<0){statMonthOff++;renderStatistics(el);}});
   document.getElementById('syp')&&document.getElementById('syp').addEventListener('click',function(){if(statYear>earliestYear){statYear--;renderStatistics(el);}});
@@ -1925,8 +2082,11 @@ function renderPlanning(el){
     if(!cont)return;
     if(tab==='planned'){
       var today=new Date();
-      var html=PLANNED.length===0?'<div class="empty"><p>No planned payments yet.<br>Add one below.</p></div>'
-        :PLANNED.map(function(p){
+      var planList=planSort(PLANNED.filter(planPasses));
+      var pfCount=planFilterActiveCount();
+      var html='<button id="plan-filter-btn" style="display:flex;align-items:center;gap:7px;width:100%;justify-content:center;background:var(--bg-card);border:1px solid var(--border2);border-radius:var(--rsm);padding:9px;margin-bottom:12px;cursor:pointer;color:var(--t1);font-family:var(--font);font-size:13.5px;font-weight:600"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>'+(pfCount>0?'Filter &amp; sort ('+pfCount+')':'Filter &amp; sort')+'</button>';
+      html+=PLANNED.length===0?'<div class="empty"><p>No planned payments yet.<br>Add one below.</p></div>'
+        :(planList.length===0?'<div class="empty"><p>No planned payments match the filter.</p></div>':planList.map(function(p){
           var d=new Date((p.NextDate||'').substring(0,10)+'T00:00:00');var tdy=new Date();tdy.setHours(0,0,0,0);var days=Math.round((d-tdy)/86400000);
           var u=days<=3?'var(--red)':days<=7?'var(--amber)':'var(--t2)';
           var isIncome=p.Category&&([].concat(CATS.income)).find(function(cat){return cat.ID===p.Category||cat.Name===p.Category;});
@@ -1946,9 +2106,10 @@ function renderPlanning(el){
             +'<button data-plan-edit="'+p.ID+'" style="flex:1;font-size:13px;background:var(--blue-s);border:1px solid rgba(70,114,196,.25);color:var(--blue);border-radius:6px;padding:5px;cursor:pointer;font-family:var(--font);font-weight:600">Edit</button>'
             +'<button data-plan-del="'+p.ID+'" style="font-size:13px;background:var(--red-s);border:1px solid rgba(168,72,72,.25);color:var(--red);border-radius:6px;padding:5px 8px;cursor:pointer;font-family:var(--font);font-weight:600">Del</button>'
             +'</div></div>';
-        }).join('');
+        }).join(''));
       html+='<button class="btn sec" id="add-plan-btn" style="margin-top:4px">+ Add planned payment</button>';
       cont.innerHTML=html;
+      document.getElementById('plan-filter-btn')?.addEventListener('click',function(){openPlanFilterSheet(function(){redraw();});});
       // Log now buttons
       cont.querySelectorAll('[data-plan-log]').forEach(function(btn){
         btn.addEventListener('click',async function(){
