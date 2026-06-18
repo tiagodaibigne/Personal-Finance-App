@@ -101,7 +101,7 @@ html,body{margin:0;padding:0;background:var(--bg);font-family:var(--font);color:
 .nl{font-size:10.6px;font-weight:500}
 .fab{position:absolute;bottom:calc(var(--nav) + var(--safe-bottom) + 16px);right:16px;width:48px;height:48px;background:var(--blue);border-radius:50%;border:none;color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 4px 16px rgba(70,114,196,.38);z-index:90;transition:.14s}
 .fab:active{transform:scale(.91)}
-.overlay{position:absolute;inset:0;background:rgba(0,0,0,.78);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);z-index:200;display:flex;align-items:flex-end;opacity:0;pointer-events:none;transition:opacity .2s}
+.overlay{position:fixed;top:0;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:430px;background:rgba(0,0,0,.78);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);z-index:200;display:flex;align-items:flex-end;opacity:0;pointer-events:none;transition:opacity .2s}
 .overlay.on{opacity:1;pointer-events:all}
 .sheet{background:#0e0e0e;border-radius:var(--rxl) var(--rxl) 0 0;width:100%;padding:10px 15px 36px;transform:translateY(100%);transition:transform .28s var(--spring);max-height:92%;overflow-y:auto;scrollbar-width:none}
 .sheet::-webkit-scrollbar{display:none}
@@ -193,12 +193,14 @@ select.fi{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.o
 /* ═══ RESPONSIVE / ADAPTIVE LAYOUT ═══ */
 /* Tablet: widen the app and give it breathing room */
 @media (min-width:600px){
+  .overlay{max-width:600px}
   #app{max-width:600px;border-left:1px solid var(--border2);border-right:1px solid var(--border2)}
   .scroll{padding-left:24px;padding-right:24px}
   .ph{padding:24px 0 18px}
 }
 /* Large tablet / laptop: wider container, content stays comfortably readable */
 @media (min-width:900px){
+  .overlay{max-width:780px}
   #app{max-width:780px}
   .scroll{padding-left:40px;padding-right:40px}
   /* Account cards can show more per row on wide screens */
@@ -206,6 +208,7 @@ select.fi{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.o
 }
 /* Desktop: cap width so text lines don't get uncomfortably long */
 @media (min-width:1200px){
+  .overlay{max-width:820px}
   #app{max-width:820px}
 }
 /* On any wide screen, the bottom nav floats with rounded corners like a dock */
@@ -1662,44 +1665,62 @@ function planSort(arr){
 }
 function openPlanFilterSheet(onApply){
   var overlay=document.createElement('div');overlay.className='overlay';overlay.style.zIndex='320';
-  var typeOpts=[{val:'',label:'All'},{val:'income',label:'Income'},{val:'expense',label:'Expense'}];
-  // Distinct recurrences in use
   var recSet={};PLANNED.forEach(function(p){if(p.Frequency)recSet[p.Frequency]=1;});
-  var recOpts=[{val:'',label:'All'}].concat(Object.keys(recSet).map(function(r){return {val:r,label:r};}));
-  // Categories used in planned payments
   var catSet={};PLANNED.forEach(function(p){if(p.Category)catSet[p.Category]=1;});
-  var catOpts=[{val:'',label:'All'}].concat(Object.keys(catSet).map(function(id){var cat=getCat(id);return {val:id,label:cat.Name,colour:cat.Colour};}));
-  var sortOpts=[{val:'due-asc',label:'Due: soonest'},{val:'due-desc',label:'Due: latest'},{val:'name-az',label:'Name: A–Z'},{val:'name-za',label:'Name: Z–A'}];
-  var body=filterGroup('Type',typeOpts,planFilters.type,'type')
-    +filterGroup('Recurrence',recOpts,planFilters.recurrence,'recurrence')
-    +(catOpts.length>1?filterGroup('Category',catOpts,planFilters.category,'category'):'')
-    +filterGroup('Sort by',sortOpts,planFilters.sort,'sort');
+  var attrs=[
+    {key:'type',title:'Type',opts:function(){return [{val:'',label:'All'},{val:'income',label:'Income'},{val:'expense',label:'Expense'}];}},
+    {key:'recurrence',title:'Recurrence',opts:function(){return [{val:'',label:'All'}].concat(Object.keys(recSet).map(function(r){return {val:r,label:r};}));}},
+    {key:'sort',title:'Sort by',opts:function(){return [{val:'due-asc',label:'Due: soonest'},{val:'due-desc',label:'Due: latest'},{val:'name-az',label:'Name: A–Z'},{val:'name-za',label:'Name: Z–A'}];}}
+  ];
+  if(Object.keys(catSet).length)attrs.splice(2,0,{key:'category',title:'Category',opts:function(){return [{val:'',label:'All'}].concat(Object.keys(catSet).map(function(id){var cat=getCat(id);return {val:id,label:cat.Name,colour:cat.Colour};}));}});
+  function selLabel(attr){var v=planFilters[attr.key];var found=attr.opts().find(function(o){return o.val===v;});return found?found.label:(v||'All');}
+  var openKey=null;
+  function rowsHtml(){
+    return attrs.map(function(attr){
+      var active=attr.key==='sort'?(planFilters.sort&&planFilters.sort!=='due-asc'):!!planFilters[attr.key];
+      var expanded=openKey===attr.key;
+      var html='<div class="flt-row" style="border:1px solid var(--border2);border-radius:var(--rsm);margin-bottom:8px;overflow:hidden">'
+        +'<div class="flt-row-head" data-attr="'+attr.key+'" style="display:flex;align-items:center;justify-content:space-between;padding:13px 14px;cursor:pointer">'
+        +'<span style="font-size:14.5px;font-weight:600">'+attr.title+'</span>'
+        +'<span style="display:flex;align-items:center;gap:8px"><span style="font-size:13.5px;color:'+(active?'var(--blue)':'var(--t2)')+';font-weight:'+(active?'600':'400')+'">'+selLabel(attr)+'</span>'
+        +'<span style="color:var(--t2);font-size:12px;transform:rotate('+(expanded?'90':'0')+'deg);transition:.15s">›</span></span>'
+        +'</div>';
+      if(expanded){
+        var chips=attr.opts().map(function(o){
+          var on=planFilters[attr.key]===o.val;
+          var dot=o.colour?'<span style="width:9px;height:9px;border-radius:50%;background:'+o.colour+';display:inline-block;margin-right:5px;vertical-align:middle"></span>':'';
+          return '<button class="flt-opt" data-attr="'+attr.key+'" data-val="'+String(o.val).replace(/"/g,'&quot;')+'" style="font-size:12.5px;padding:7px 13px;border-radius:9px;border:1px solid '+(on?'var(--blue)':'var(--border2)')+';background:'+(on?'var(--blue-s)':'transparent')+';color:'+(on?'var(--blue)':'var(--t1)')+';cursor:pointer;font-family:var(--font);font-weight:600;white-space:nowrap">'+dot+o.label+'</button>';
+        }).join('');
+        html+='<div style="display:flex;flex-wrap:wrap;gap:7px;padding:0 14px 14px">'+chips+'</div>';
+      }
+      html+='</div>';
+      return html;
+    }).join('');
+  }
   overlay.innerHTML='<div class="sheet" style="max-height:85vh;display:flex;flex-direction:column">'
     +'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">'
     +'<div style="font-size:17px;font-weight:700">Filter &amp; sort</div>'
     +'<button id="pflt-close" style="background:var(--bg-input);border:none;color:var(--t1);width:30px;height:30px;border-radius:8px;cursor:pointer;font-size:16px">✕</button></div>'
-    +'<div style="overflow-y:auto;flex:1">'+body+'</div>'
+    +'<div id="pflt-rows" style="overflow-y:auto;flex:1">'+rowsHtml()+'</div>'
     +'<div style="display:flex;gap:10px;margin-top:14px"><button class="btn sec" id="pflt-clear" style="flex:1">Reset</button><button class="btn" id="pflt-apply" style="flex:1">Apply</button></div>'
     +'</div>';
   document.body.appendChild(overlay);
   requestAnimationFrame(function(){overlay.classList.add('on');});
   function close(){overlay.classList.remove('on');setTimeout(function(){overlay.remove();},250);}
+  function rebuild(){overlay.querySelector('#pflt-rows').innerHTML=rowsHtml();wire();}
+  function wire(){
+    overlay.querySelectorAll('.flt-row-head').forEach(function(head){
+      head.addEventListener('click',function(){var k=head.dataset.attr;openKey=(openKey===k)?null:k;rebuild();});
+    });
+    overlay.querySelectorAll('.flt-opt').forEach(function(opt){
+      opt.addEventListener('click',function(){planFilters[opt.dataset.attr]=opt.dataset.val;openKey=null;rebuild();});
+    });
+  }
   overlay.addEventListener('click',function(e){if(e.target===overlay)close();});
   overlay.querySelector('#pflt-close').addEventListener('click',close);
-  overlay.querySelectorAll('.flt-chip').forEach(function(chip){
-    chip.addEventListener('click',function(){
-      var key=chip.dataset.key;planFilters[key]=chip.dataset.val;
-      var group=chip.parentNode;
-      group.querySelectorAll('.flt-chip').forEach(function(x){
-        var on=x.dataset.val===planFilters[key];
-        x.style.border='1px solid '+(on?'var(--blue)':'var(--border2)');
-        x.style.background=on?'var(--blue-s)':'transparent';
-        x.style.color=on?'var(--blue)':'var(--t1)';
-      });
-    });
-  });
   overlay.querySelector('#pflt-clear').addEventListener('click',function(){planFilters={type:'',recurrence:'',category:'',sort:'due-asc'};close();if(onApply)onApply();});
   overlay.querySelector('#pflt-apply').addEventListener('click',function(){close();if(onApply)onApply();});
+  wire();
 }
 
 // ═══ SHARED FILTER SYSTEM (Records, Statistics, Planning) ═══
@@ -1748,48 +1769,86 @@ function filterGroup(title,options,current,dataKey){
 // Open the transaction filter sheet (used by Records and Statistics)
 function openTxFilterSheet(onApply){
   var overlay=document.createElement('div');overlay.className='overlay';overlay.style.zIndex='320';
-  var accOpts=[{val:'',label:'All'}].concat(ACCOUNTS.map(function(a){return {val:a.ID,label:a.Name,colour:a.Colour};}));
-  var catOpts=[{val:'',label:'All'}].concat(allCategories().map(function(cat){return {val:cat.ID,label:cat.Name,colour:cat.Colour};}));
-  var curOpts=[{val:'',label:'All'}].concat(allCurrenciesInUse().map(function(cu){return {val:cu,label:cu};}));
-  var typeOpts=[{val:'',label:'All'},{val:'expense',label:'Expense'},{val:'income',label:'Income'},{val:'transfer',label:'Transfer'}];
-  var transferOpts=[{val:'',label:'All'},{val:'only',label:'Transfers only'},{val:'exclude',label:'Exclude transfers'}];
-  var lblOpts=[{val:'',label:'All'}].concat((typeof allLabelsInUse==='function'?allLabelsInUse():[]).map(function(l){return {val:l,label:l};}));
-  var body=filterGroup('Type',typeOpts,txFilters.type,'type')
-    +filterGroup('Account',accOpts,txFilters.account,'account')
-    +filterGroup('Category',catOpts,txFilters.category,'category')
-    +filterGroup('Currency',curOpts,txFilters.currency,'currency')
-    +filterGroup('Transfers',transferOpts,txFilters.transfer,'transfer')
-    +(lblOpts.length>1?filterGroup('Label',lblOpts,txFilters.label,'label'):'');
+  // Attribute definitions: each has a key, title, and a function returning options [{val,label,colour}]
+  var attrs=[
+    {key:'type',title:'Type',opts:function(){return [{val:'',label:'All'},{val:'expense',label:'Expense'},{val:'income',label:'Income'},{val:'transfer',label:'Transfer'}];}},
+    {key:'account',title:'Account',opts:function(){return [{val:'',label:'All'}].concat(ACCOUNTS.map(function(a){return {val:a.ID,label:a.Name,colour:a.Colour};}));}},
+    {key:'category',title:'Category',opts:function(){return [{val:'',label:'All'}].concat(allCategories().map(function(cat){return {val:cat.ID,label:cat.Name,colour:cat.Colour};}));}},
+    {key:'currency',title:'Currency',opts:function(){return [{val:'',label:'All'}].concat(allCurrenciesInUse().map(function(cu){return {val:cu,label:cu};}));}},
+    {key:'transfer',title:'Transfers',opts:function(){return [{val:'',label:'All'},{val:'only',label:'Transfers only'},{val:'exclude',label:'Exclude transfers'}];}}
+  ];
+  var lbls=(typeof allLabelsInUse==='function'?allLabelsInUse():[]);
+  if(lbls.length)attrs.push({key:'label',title:'Label',opts:function(){return [{val:'',label:'All'}].concat(lbls.map(function(l){return {val:l,label:l};}));}});
+  // Find the label for the currently-selected value of an attribute
+  function selLabel(attr){
+    var v=txFilters[attr.key];if(!v)return 'All';
+    var found=attr.opts().find(function(o){return o.val===v;});
+    return found?found.label:v;
+  }
+  var openKey=null; // which attribute is currently expanded
+  function rowsHtml(){
+    return attrs.map(function(attr){
+      var active=!!txFilters[attr.key];
+      var expanded=openKey===attr.key;
+      var html='<div class="flt-row" data-attr="'+attr.key+'" style="border:1px solid var(--border2);border-radius:var(--rsm);margin-bottom:8px;overflow:hidden">'
+        +'<div class="flt-row-head" data-attr="'+attr.key+'" style="display:flex;align-items:center;justify-content:space-between;padding:13px 14px;cursor:pointer">'
+        +'<span style="font-size:14.5px;font-weight:600">'+attr.title+'</span>'
+        +'<span style="display:flex;align-items:center;gap:8px"><span style="font-size:13.5px;color:'+(active?'var(--blue)':'var(--t2)')+';font-weight:'+(active?'600':'400')+'">'+selLabel(attr)+'</span>'
+        +'<span style="color:var(--t2);font-size:12px;transform:rotate('+(expanded?'90':'0')+'deg);transition:.15s">›</span></span>'
+        +'</div>';
+      if(expanded){
+        var chips=attr.opts().map(function(o){
+          var on=txFilters[attr.key]===o.val;
+          var dot=o.colour?'<span style="width:9px;height:9px;border-radius:50%;background:'+o.colour+';display:inline-block;margin-right:5px;vertical-align:middle"></span>':'';
+          return '<button class="flt-opt" data-attr="'+attr.key+'" data-val="'+String(o.val).replace(/"/g,'&quot;')+'" style="font-size:12.5px;padding:7px 13px;border-radius:9px;border:1px solid '+(on?'var(--blue)':'var(--border2)')+';background:'+(on?'var(--blue-s)':'transparent')+';color:'+(on?'var(--blue)':'var(--t1)')+';cursor:pointer;font-family:var(--font);font-weight:600;white-space:nowrap">'+dot+o.label+'</button>';
+        }).join('');
+        html+='<div style="display:flex;flex-wrap:wrap;gap:7px;padding:0 14px 14px">'+chips+'</div>';
+      }
+      html+='</div>';
+      return html;
+    }).join('');
+  }
   overlay.innerHTML='<div class="sheet" style="max-height:85vh;display:flex;flex-direction:column">'
     +'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">'
     +'<div style="font-size:17px;font-weight:700">Filter</div>'
     +'<button id="flt-close" style="background:var(--bg-input);border:none;color:var(--t1);width:30px;height:30px;border-radius:8px;cursor:pointer;font-size:16px">✕</button></div>'
-    +'<div style="overflow-y:auto;flex:1">'+body+'</div>'
+    +'<div id="flt-rows" style="overflow-y:auto;flex:1">'+rowsHtml()+'</div>'
     +'<div style="display:flex;gap:10px;margin-top:14px"><button class="btn sec" id="flt-clear" style="flex:1">Clear all</button><button class="btn" id="flt-apply" style="flex:1">Apply</button></div>'
     +'</div>';
   document.body.appendChild(overlay);
   requestAnimationFrame(function(){overlay.classList.add('on');});
   function close(){overlay.classList.remove('on');setTimeout(function(){overlay.remove();},250);}
-  overlay.addEventListener('click',function(e){if(e.target===overlay)close();});
-  overlay.querySelector('#flt-close').addEventListener('click',close);
-  overlay.querySelectorAll('.flt-chip').forEach(function(chip){
-    chip.addEventListener('click',function(){
-      var key=chip.dataset.key;txFilters[key]=chip.dataset.val;
-      // repaint this group's chips
-      var group=chip.parentNode;
-      group.querySelectorAll('.flt-chip').forEach(function(x){
-        var on=x.dataset.val===txFilters[key];
-        x.style.border='1px solid '+(on?'var(--blue)':'var(--border2)');
-        x.style.background=on?'var(--blue-s)':'transparent';
-        x.style.color=on?'var(--blue)':'var(--t1)';
+  function rebuild(){
+    var container=overlay.querySelector('#flt-rows');
+    container.innerHTML=rowsHtml();
+    wire();
+  }
+  function wire(){
+    // Expand/collapse on header tap
+    overlay.querySelectorAll('.flt-row-head').forEach(function(head){
+      head.addEventListener('click',function(){
+        var k=head.dataset.attr;
+        openKey=(openKey===k)?null:k; // toggle; only one open at a time
+        rebuild();
       });
     });
-  });
+    // Select an option
+    overlay.querySelectorAll('.flt-opt').forEach(function(opt){
+      opt.addEventListener('click',function(){
+        txFilters[opt.dataset.attr]=opt.dataset.val;
+        openKey=null; // collapse after choosing, back to tidy list
+        rebuild();
+      });
+    });
+  }
+  overlay.addEventListener('click',function(e){if(e.target===overlay)close();});
+  overlay.querySelector('#flt-close').addEventListener('click',close);
   overlay.querySelector('#flt-clear').addEventListener('click',function(){
     txFilters={account:'',category:'',label:'',currency:'',type:'',transfer:''};
     close();if(onApply)onApply();
   });
   overlay.querySelector('#flt-apply').addEventListener('click',function(){close();if(onApply)onApply();});
+  wire();
 }
 
 function renderRecords(el){let search='',filter='all';const redraw=()=>{const list=document.getElementById('rec-list');if(!list)return;const rng=getRecordsRange();let txs=TX.filter(tx=>{const cat=getCat(tx.category);const td=new Date((tx.date||'').substring(0,10)+'T12:00:00');const inRng=!isNaN(td)&&td>=rng.start&&td<=rng.end;return inRng&&txPassesFilters(tx)&&(filter==='all'||tx.type===filter)&&(!search||`${tx.note} ${tx.payee} ${tx.labels} ${cat.Name}`.toLowerCase().includes(search));});if(!txs.length){list.innerHTML='<div class="empty"><p>No transactions found</p></div>';return;}const g=groupByDate(txs);list.innerHTML=Object.entries(g).map(([date,txs])=>`<div class="dg-lbl">${date}</div><div class="card" style="padding:0 13px">${txs.map(t=>txRow(t,TX.indexOf(t),true)).join('')}</div>`).join('');};el.innerHTML=`<div class="ph"><h1 class="pt">Records</h1></div>
