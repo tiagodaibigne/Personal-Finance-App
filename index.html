@@ -1166,7 +1166,7 @@ function openLabelManager(){
       +'<div class="lm-head" data-name="'+safe+'" style="display:flex;align-items:center;gap:11px;padding:11px 13px;cursor:pointer">'
       +'<span style="font-size:11px;background:'+hexToRgba(col,0.15)+';border:1px solid '+hexToRgba(col,0.3)+';color:'+col+';padding:3px 9px;border-radius:5px;font-weight:600;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+name+'</span>'
       +'<span style="width:22px;height:22px;border-radius:6px;background:'+col+';flex-shrink:0;border:1px solid var(--border)"></span>'
-      +'<span style="color:var(--t2);font-size:12px;transform:rotate('+(expanded?'90':'0')+'deg);transition:.15s">\u203a</span>'
+      +'<span style="color:var(--t2);font-size:12px;transform:rotate('+(expanded?'90':'0')+'deg);transition:.15s">›</span>'
       +'</div>';
     if(expanded){
       html+='<div style="padding:0 13px 13px">'+colourPickerHtml(col,'lm')+'</div>';
@@ -1185,7 +1185,7 @@ function openLabelManager(){
   overlay.innerHTML='<div class="sheet" style="max-height:85vh;display:flex;flex-direction:column">'
     +'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">'
     +'<div style="font-size:17px;font-weight:700">Manage labels</div>'
-    +'<button id="lm-close" style="background:var(--bg-input);border:none;color:var(--t1);width:30px;height:30px;border-radius:8px;cursor:pointer;font-size:16px">\u2715</button></div>'
+    +'<button id="lm-close" style="background:var(--bg-input);border:none;color:var(--t1);width:30px;height:30px;border-radius:8px;cursor:pointer;font-size:16px">✕</button></div>'
     +'<div id="lm-body" style="overflow-y:auto;flex:1">'
     +toggleHtml()
     +'<div style="font-size:12px;color:var(--t2);font-weight:600;text-transform:uppercase;letter-spacing:.5px;margin-bottom:9px">Label colours</div>'
@@ -2657,7 +2657,7 @@ document.getElementById('more-diag')?.addEventListener('click',function(){runDia
 
 // Reusable colour picker: palette swatches + hex input. Returns HTML; caller wires via class hooks.
 function colourPickerHtml(current,idPrefix){
-  var sw=COLOURS.map(function(col){
+  var sw=CAT_COLOURS.map(function(col){
     var on=(current||'').toLowerCase()===col.toLowerCase();
     return '<button class="'+idPrefix+'-sw" data-col="'+col+'" style="width:30px;height:30px;border-radius:7px;background:'+col+';border:'+(on?'3px solid var(--t1)':'2px solid var(--border)')+';cursor:pointer;flex-shrink:0"></button>';
   }).join('');
@@ -2721,7 +2721,7 @@ function openIconPicker(catId,onDone){
   overlay.innerHTML='<div class="sheet" style="max-height:88vh;display:flex;flex-direction:column">'
     +'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">'
     +'<div style="font-size:17px;font-weight:700">Edit '+cat.Name+'</div>'
-    +'<button id="ip-close" style="background:var(--bg-input);border:none;color:var(--t1);width:30px;height:30px;border-radius:8px;cursor:pointer;font-size:16px">\u2715</button></div>'
+    +'<button id="ip-close" style="background:var(--bg-input);border:none;color:var(--t1);width:30px;height:30px;border-radius:8px;cursor:pointer;font-size:16px">✕</button></div>'
     +'<div style="overflow-y:auto;flex:1">'
     +colourPickerHtml(chosenColour,'cat')
     +'<div style="font-size:12px;color:var(--t2);font-weight:600;text-transform:uppercase;letter-spacing:.5px;margin-bottom:9px">Icon</div>'
