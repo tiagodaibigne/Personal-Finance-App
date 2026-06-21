@@ -596,7 +596,32 @@ function normaliseTx(tx){
   if(tx.labels) tx.labels=tx.labels.replace(/[;|]/g,',').trim();
   return tx;
 }
-async function loadAll(){const[txR,accR,catR,planR,budR,setR]=await Promise.all([readSheet('Transactions'),readSheet('Accounts'),readSheet('Categories'),readSheet('PlannedPayments'),readSheet('Budgets'),readSheet('Settings').catch(function(){return[];})]);mergeLabelColoursFromSheet(setR);TX=rowsToObjects(txR).map(normaliseTx).sort((a,b)=>new Date(b.date)-new Date(a.date));ACCOUNTS=rowsToObjects(accR).filter(a=>a.Active==='TRUE');const ac=rowsToObjects(catR).filter(c=>c.Active==='TRUE').map(function(c){if(!c.Colour&&c.Color)c.Colour=c.Color;return c;});CATS.expense=ac.filter(c=>c.Type==='expense');CATS.income=ac.filter(c=>c.Type==='income');CATS.transfer=ac.filter(c=>c.Type==='transfer');PLANNED=rowsToObjects(planR).filter(p=>p.Active==='TRUE');BUDGETS=rowsToObjects(budR).filter(b=>b.Active==='TRUE');lastSync=new Date();overlayPendingTx();if(typeof updatePendingBadge==='function')updatePendingBadge();}
+// Cache the last-loaded sheet data locally so the app can show something when offline.
+var DATA_CACHE_KEY='financeDataCache';
+function saveDataCache(raw){
+  try{localStorage.setItem(DATA_CACHE_KEY,JSON.stringify({t:Date.now(),raw:raw}));}catch(e){/* quota — ignore */}
+}
+function hasDataCache(){try{return !!localStorage.getItem(DATA_CACHE_KEY);}catch(e){return false;}}
+// Rebuild the in-memory data from the local cache (used when offline).
+function loadFromCache(){
+  try{
+    var s=localStorage.getItem(DATA_CACHE_KEY);if(!s)return false;
+    var d=JSON.parse(s);var raw=d.raw||{};
+    TX=rowsToObjects(raw.txR||[]).map(normaliseTx).sort(function(a,b){return new Date(b.date)-new Date(a.date);});
+    ACCOUNTS=rowsToObjects(raw.accR||[]).filter(function(a){return a.Active==='TRUE';});
+    var ac=rowsToObjects(raw.catR||[]).filter(function(c){return c.Active==='TRUE';}).map(function(c){if(!c.Colour&&c.Color)c.Colour=c.Color;return c;});
+    CATS.expense=ac.filter(function(c){return c.Type==='expense';});
+    CATS.income=ac.filter(function(c){return c.Type==='income';});
+    CATS.transfer=ac.filter(function(c){return c.Type==='transfer';});
+    PLANNED=rowsToObjects(raw.planR||[]).filter(function(p){return p.Active==='TRUE';});
+    BUDGETS=rowsToObjects(raw.budR||[]).filter(function(b){return b.Active==='TRUE';});
+    overlayPendingTx();
+    if(typeof updatePendingBadge==='function')updatePendingBadge();
+    return true;
+  }catch(e){console.error('loadFromCache',e);return false;}
+}
+
+async function loadAll(){const[txR,accR,catR,planR,budR,setR]=await Promise.all([readSheet('Transactions'),readSheet('Accounts'),readSheet('Categories'),readSheet('PlannedPayments'),readSheet('Budgets'),readSheet('Settings').catch(function(){return[];})]);mergeLabelColoursFromSheet(setR);saveDataCache({txR:txR,accR:accR,catR:catR,planR:planR,budR:budR});TX=rowsToObjects(txR).map(normaliseTx).sort((a,b)=>new Date(b.date)-new Date(a.date));ACCOUNTS=rowsToObjects(accR).filter(a=>a.Active==='TRUE');const ac=rowsToObjects(catR).filter(c=>c.Active==='TRUE').map(function(c){if(!c.Colour&&c.Color)c.Colour=c.Color;return c;});CATS.expense=ac.filter(c=>c.Type==='expense');CATS.income=ac.filter(c=>c.Type==='income');CATS.transfer=ac.filter(c=>c.Type==='transfer');PLANNED=rowsToObjects(planR).filter(p=>p.Active==='TRUE');BUDGETS=rowsToObjects(budR).filter(b=>b.Active==='TRUE');lastSync=new Date();overlayPendingTx();if(typeof updatePendingBadge==='function')updatePendingBadge();}
 function exportCSV(){const rows=[TX_HEADERS,...TX.map(tx=>TX_HEADERS.map(h=>tx[h]||''))];const csv=rows.map(r=>r.map(v=>`"${(v||'').toString().replace(/"/g,'""')}"`).join(',')).join('\n');const url=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));const a=document.createElement('a');a.href=url;a.download=`finance_${new Date().toISOString().split('T')[0]}.csv`;a.click();URL.revokeObjectURL(url);toast('CSV exported','suc');}
 
 function getTheme(){return localStorage.getItem('financeTheme')||'dark';}
@@ -610,7 +635,37 @@ function applyTheme(t){
 function setTheme(t){localStorage.setItem('financeTheme',t);applyTheme(t);}
 function toggleTheme(){var t=getTheme()==='light'?'dark':'light';setTheme(t);if(curPage)render(curPage);}
 
-async function boot(){try{applyTheme(getTheme());hideAmounts=localStorage.getItem('financeHideAmounts')==='1';await initGoogle();if(isTokenValid()&&gapi.client.getToken()){await onSignedIn();}else{hideSplash();showAuth();}}catch(e){console.error(e);hideSplash();showAuth();}}
+async function boot(){try{applyTheme(getTheme());hideAmounts=localStorage.getItem('financeHideAmounts')==='1';
+  // If we're offline but have a previous session + cached data, open straight into
+  // an offline view so the app launches without a connection.
+  if(!isOnline()&&isTokenValid()&&hasDataCache()){openOffline();return;}
+  await initGoogle();if(isTokenValid()&&gapi.client.getToken()){await onSignedIn();}else{hideSplash();showAuth();}
+  }catch(e){
+    console.error(e);
+    // Network/Google init failed. If we have a cached session+data, show offline view.
+    if(isTokenValid()&&hasDataCache()){openOffline();}
+    else{hideSplash();showAuth();}
+  }}
+// Open the app from local cache when there's no connection.
+function openOffline(){
+  hideSplash();
+  document.getElementById('auth').style.display='none';
+  document.getElementById('main').style.display='flex';
+  loadFromCache();
+  if(typeof fetchLiveRates==='function'){try{fetchLiveRates();}catch(e){}}
+  setupNav();setupFab();setupModals();
+  render('dashboard');
+  if(typeof toast==='function')toast('Offline — showing saved data','');
+  // When the connection returns, do a full sync + reload.
+  if(typeof window!=='undefined'){
+    window.addEventListener('online',function once(){
+      window.removeEventListener('online',once);
+      if(typeof flushQueue==='function')flushQueue(false);
+      // Re-init Google and load fresh data.
+      (async function(){try{await initGoogle();if(isTokenValid()&&gapi.client.getToken()){await onSignedIn();}else{location.reload();}}catch(e){}})();
+    });
+  }
+}
 function hideSplash(){setTimeout(()=>{const s=document.getElementById('splash');s.classList.add('hide');setTimeout(()=>s.remove(),400);},900);}
 function showAuth(){hideSplash();document.getElementById('auth').style.display='flex';document.getElementById('signin-btn').onclick=signIn;}
 async function onSignedIn(){try{const t=gapi.client.getToken()?.access_token;if(t){const r=await fetch('https://www.googleapis.com/oauth2/v3/userinfo',{headers:{Authorization:'Bearer '+t}});userProfile=await r.json();}}catch(e){}hideSplash();document.getElementById('auth').style.display='none';document.getElementById('main').style.display='flex';document.getElementById('p-dashboard').innerHTML='<div class="spinner"></div>';try{await getOrCreateSheet();if(typeof fetchLiveRates==='function'){await fetchLiveRates();}await loadAll();await checkAutoPlanned();setupNav();setupFab();setupModals();render('dashboard');if(typeof flushQueue==='function'&&queueLength()>0){flushQueue(false);}}catch(e){console.error(e);document.getElementById('p-dashboard').innerHTML='<div class="empty"><p>Failed to connect to Google Sheets.<br>Check your internet connection and that you added the authorised domain in Google Cloud Console.</p><button class="btn pri" style="margin-top:12px" onclick="location.reload()">Retry</button></div>';}}
@@ -3432,7 +3487,19 @@ async function runDiagnostic(){
 setupDonutInteraction();
 setupLineChartHover();
 window.addEventListener('load',boot);
-if('serviceWorker' in navigator)navigator.serviceWorker.register('service-worker.js').catch(()=>{});
+if('serviceWorker' in navigator){
+  navigator.serviceWorker.register('service-worker.js').then(function(reg){
+    // Check for an updated service worker on each load.
+    reg.addEventListener('updatefound',function(){
+      var nw=reg.installing;
+      if(!nw)return;
+      nw.addEventListener('statechange',function(){
+        // A new worker has taken over; the next load will use the fresh app.
+        if(nw.state==='activated'){/* updated silently; new version live on next open */}
+      });
+    });
+  }).catch(function(){});
+}
 </script>
 </body>
 </html>
