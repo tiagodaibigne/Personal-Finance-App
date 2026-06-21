@@ -1,65 +1,84 @@
-// service-worker.js
-const CACHE_NAME = 'finance-pwa-v1';
-const STATIC_ASSETS = [
-  '/',
-  '/index.html',
-  '/manifest.json',
-  '/src/styles/main.css',
-  '/src/app.js',
-  '/src/sheets/sheets.js',
-  '/src/utils/auth.js',
-  '/src/utils/fx.js',
-  '/src/utils/state.js',
-  '/src/components/dashboard.js',
-  '/src/components/records.js',
-  '/src/components/statistics.js',
-  '/src/components/planning.js',
-  '/src/components/more.js',
-  '/src/components/transaction-modal.js',
-  '/src/components/account-modal.js',
-  '/src/components/toast.js',
+// Personal Budgeting App — service worker
+// Enables the app to LAUNCH offline by serving a cached copy of the page when
+// there is no connection. Uses network-first for the app page so that new
+// deployments still appear when you are online (avoids stale-cache problems),
+// and cache-first for fonts (which rarely change).
+
+// Bump this version string on each deploy to retire old caches cleanly.
+var CACHE = 'pba-cache-v69';
+
+// The core file(s) that make up the app shell.
+var APP_SHELL = [
+  './',
+  './index.html'
 ];
 
-// Install: cache static assets
-self.addEventListener('install', event => {
-  event.waitUntil(
-    caches.open(CACHE_NAME).then(cache => cache.addAll(STATIC_ASSETS))
+// On install: pre-cache the app shell so the very first offline launch works.
+self.addEventListener('install', function (e) {
+  self.skipWaiting(); // activate the new worker immediately
+  e.waitUntil(
+    caches.open(CACHE).then(function (cache) {
+      return cache.addAll(APP_SHELL).catch(function () { /* ignore individual failures */ });
+    })
   );
-  self.skipWaiting();
 });
 
-// Activate: clean old caches
-self.addEventListener('activate', event => {
-  event.waitUntil(
-    caches.keys().then(keys =>
-      Promise.all(keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k)))
-    )
+// On activate: delete any old version caches.
+self.addEventListener('activate', function (e) {
+  e.waitUntil(
+    caches.keys().then(function (keys) {
+      return Promise.all(keys.map(function (k) {
+        if (k !== CACHE) return caches.delete(k);
+      }));
+    }).then(function () { return self.clients.claim(); })
   );
-  self.clients.claim();
 });
 
-// Fetch: cache-first for static, network-first for API calls
-self.addEventListener('fetch', event => {
-  const { request } = event;
-  const url = new URL(request.url);
+self.addEventListener('fetch', function (e) {
+  var req = e.request;
+  var url = new URL(req.url);
 
-  // Skip Google API calls — always network
-  if (url.hostname.includes('googleapis.com') ||
-      url.hostname.includes('accounts.google.com') ||
-      url.hostname.includes('frankfurter.app')) {
+  // Only handle GET requests.
+  if (req.method !== 'GET') return;
+
+  // Never intercept Google API / auth / sheets calls — these need the live
+  // network and must not be served from cache. Let the browser handle them.
+  if (/googleapis\.com|accounts\.google\.com|apis\.google\.com|sheets\.googleapis/.test(url.href)) {
+    return; // default network handling
+  }
+
+  // Google Fonts: cache-first (fonts are static; this makes the app look right offline).
+  if (/fonts\.googleapis\.com|fonts\.gstatic\.com/.test(url.href)) {
+    e.respondWith(
+      caches.match(req).then(function (cached) {
+        if (cached) return cached;
+        return fetch(req).then(function (res) {
+          var copy = res.clone();
+          caches.open(CACHE).then(function (c) { c.put(req, copy); });
+          return res;
+        }).catch(function () { return cached; });
+      })
+    );
     return;
   }
 
-  event.respondWith(
-    caches.match(request).then(cached => {
-      if (cached) return cached;
-      return fetch(request).then(response => {
-        if (response.ok && request.method === 'GET') {
-          const clone = response.clone();
-          caches.open(CACHE_NAME).then(cache => cache.put(request, clone));
-        }
-        return response;
-      });
-    })
-  );
+  // App page and same-origin assets: NETWORK-FIRST.
+  // Try the live network (so new deploys show up); if offline, serve the cached copy.
+  var isPage = req.mode === 'navigate' || url.origin === self.location.origin;
+  if (isPage) {
+    e.respondWith(
+      fetch(req).then(function (res) {
+        // Update the cache with the freshest copy.
+        var copy = res.clone();
+        caches.open(CACHE).then(function (c) { c.put(req, copy); });
+        return res;
+      }).catch(function () {
+        // Offline: serve cached page, falling back to the cached index.
+        return caches.match(req).then(function (cached) {
+          return cached || caches.match('./index.html') || caches.match('./');
+        });
+      })
+    );
+    return;
+  }
 });
