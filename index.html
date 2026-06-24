@@ -881,9 +881,9 @@ function getCatIcon(cat,col){
   var validIcon=(typeof ICON_KEYS!=='undefined'&&ICON_KEYS.indexOf(sheetIcon)>=0);
   var iconKey=validIcon?sheetIcon:(nameMap[rawName]||nameMap[(cat.ID||'').toLowerCase()]||'other');
   var icons={
-    'food':'<path d="M18 8h1a4 4 0 0 1 0 8h-1M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"/><line x1="6" y1="2" x2="6" y2="8"/><line x1="10" y1="2" x2="10" y2="8"/><line x1="14" y1="2" x2="14" y2="8"/>',
+    'food':'<path d="M4 2v7a2 2 0 0 0 2 2 2 2 0 0 0 2-2V2"/><line x1="6" y1="11" x2="6" y2="22"/><path d="M16 2c-1.5 0-2.5 1.5-2.5 4s1 4 2.5 4"/><line x1="16" y1="2" x2="16" y2="22"/>',
     'coffee':'<path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"/><line x1="6" y1="2" x2="6" y2="4"/><line x1="10" y1="2" x2="10" y2="4"/><line x1="14" y1="2" x2="14" y2="4"/>',
-    'bills':'<rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/><line x1="2" y1="10" x2="22" y2="10"/>',
+    'bills':'<rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/><line x1="6" y1="15" x2="11" y2="15"/>',
     'shop':'<path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/>',
     'transport':'<rect x="1" y="3" width="15" height="13" rx="2"/><path d="M16 8h4l3 4v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/>',
     'car':'<path d="M5 17h14M5 17a2 2 0 0 1-2-2v-3l2-5a2 2 0 0 1 1.9-1.4h8.2A2 2 0 0 1 19 7l2 5v3a2 2 0 0 1-2 2M5 17v2M19 17v2"/><path d="M5 12h14"/><circle cx="7.5" cy="14.5" r=".5" fill="'+col+'"/><circle cx="16.5" cy="14.5" r=".5" fill="'+col+'"/>',
@@ -894,18 +894,18 @@ function getCatIcon(cat,col){
     'entertainment':'<circle cx="12" cy="12" r="10"/><polygon points="10,8 16,12 10,16 10,8"/>',
     'travel':'<path d="M22 2L11 13"/><path d="M22 2L15 22 11 13 2 9l20-7z"/>',
     'plane':'<path d="M17.8 19.2L16 11l3.5-3.5C21 6 21.5 4 21 3c-1-.5-3 0-4.5 1.5L13 8 4.8 6.2c-.5-.1-.9.1-1.1.5l-.3.5c-.2.5-.1 1 .3 1.3L9 12l-2 3H4l-1 1 3 2 2 3 1-1v-3l3-2 3.5 5.3c.3.4.8.5 1.3.3l.5-.2c.4-.3.6-.7.5-1.2z"/>',
-    'fitness':'<path d="M18 8h-1V6a5 5 0 0 0-10 0v2H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V10a2 2 0 0 0-2-2z"/><circle cx="12" cy="15" r="1" fill="'+col+'"/>',
+    'fitness':'<line x1="6.5" y1="6.5" x2="17.5" y2="17.5"/><path d="M4 7l3-3 3 3-3 3z"/><path d="M14 14l3 3 3-3-3-3z"/><line x1="3" y1="9" x2="5" y2="7"/><line x1="19" y1="17" x2="21" y2="15"/>',
     'family':'<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/>',
-    'baby':'<path d="M12 2a5 5 0 1 0 0 10A5 5 0 0 0 12 2z"/><path d="M12 12c-5.33 0-8 2.67-8 4v2h16v-2c0-1.33-2.67-4-8-4z"/><path d="M9 7l1 2 2-3 2 3 1-2"/>',
+    'baby':'<path d="M4 13a8 8 0 0 1 8-8h2v8z"/><line x1="4" y1="13" x2="14" y2="13"/><path d="M14 5a8 8 0 0 1 5 8h-5"/><circle cx="8" cy="19" r="2"/><circle cx="16" cy="19" r="2"/><line x1="14" y1="2" x2="11" y2="5"/>',
     'home':'<path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9,22 9,12 15,12 15,22"/>',
     'edu':'<path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>',
     'salary':'<line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>',
     'invest':'<polyline points="23,6 13.5,15.5 8.5,10.5 1,18"/><polyline points="17,6 23,6 23,12"/>',
-    'savings':'<circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>',
-    'income':'<polyline points="23,6 13.5,15.5 8.5,10.5 1,18"/><polyline points="17,6 23,6 23,12"/>',
-    'tax':'<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14,2 14,8 20,8"/><line x1="9" y1="15" x2="15" y2="15"/>',
+    'savings':'<path d="M19 10c1.2.6 2 1.6 2 2.8 0 1.3-.9 2.4-2.3 3-.4 1-1 1.8-1.7 2.4V21h-3v-1h-3v1H7v-2.3C5.2 17.4 4 15.5 4 13.3 4 10 7 7.5 11 7.5c1 0 2 .2 2.8.5L18 5.5"/><line x1="8" y1="12" x2="8.01" y2="12"/><path d="M11 7.8C11 6.5 12 6 13 6"/>',
+    'income':'<ellipse cx="12" cy="6" rx="7" ry="2.5"/><path d="M5 6v4c0 1.4 3.1 2.5 7 2.5s7-1.1 7-2.5V6"/><path d="M5 10v4c0 1.4 3.1 2.5 7 2.5s7-1.1 7-2.5v-4"/><path d="M5 14v4c0 1.4 3.1 2.5 7 2.5s7-1.1 7-2.5v-4"/>',
+    'tax':'<rect x="2" y="7" width="20" height="10" rx="1"/><circle cx="12" cy="12" r="2"/><circle cx="5.5" cy="19" r="1.5"/><circle cx="5.5" cy="5" r="1.5"/><line x1="6.7" y1="18" x2="20" y2="9"/><line x1="6.7" y1="6" x2="20" y2="15"/>',
     'code':'<polyline points="16,18 22,12 16,6"/><polyline points="8,6 2,12 8,18"/>',
-    'gambling':'<circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><circle cx="12" cy="16" r="0.5" fill="'+col+'"/>',
+    'gambling':'<rect x="2" y="9" width="11" height="11" rx="2"/><rect x="10" y="3" width="11" height="11" rx="2"/><circle cx="5.5" cy="12.5" r="0.9"/><circle cx="9.5" cy="16.5" r="0.9"/><circle cx="13.5" cy="6.5" r="0.9"/><circle cx="17.5" cy="10.5" r="0.9"/>',
     'loss':'<polyline points="23,18 13.5,8.5 8.5,13.5 1,6"/><polyline points="17,18 23,18 23,12"/>',
     'transfer':'<polyline points="17,1 21,5 17,9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7,23 3,19 7,15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/>',
     'other':'<circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/>',
@@ -1550,7 +1550,7 @@ function renderInsights(){
   // Rolling window: the carousel holds at most 3 insights at a time.
   // We render up to 3 to start; the controller swaps them on a rolling basis.
   var WINDOW=3;
-  var initial=ins.slice(0,Math.min(6,ins.length));
+  var initial=ins.slice(0,Math.min(12,ins.length));
   function slideHtml(it,i,visible){
     var col=it.catId?(getCat(it.catId).Colour||'#6f9ae8'):tone[it.tone];
     var isNew=!seen[it.key];
@@ -1629,8 +1629,9 @@ function setupInsightCarousel(){
   var tone={good:'#2db56e',neutral:'#6f9ae8'};
   var track=car.querySelector('.insight-track');
   var dotsWrap=document.getElementById('insight-dots');
-  var cur=0;            // index of the visible card within the current window
-  var poolPos=Math.min(WINDOW,total); // next index in the full pool to bring in
+  var cur=0;            // index of the visible card
+  var START_REVEAL=4;   // how many cards/dots are shown at first
+  var revealed=Math.min(START_REVEAL,total); // grows as the user advances
   var userControlled=false,timer=null;
 
   function markSeen(key){try{var s=JSON.parse(localStorage.getItem('insightsSeen')||'{}');s[key]=1;localStorage.setItem('insightsSeen',JSON.stringify(s));}catch(e){}}
@@ -1644,7 +1645,8 @@ function setupInsightCarousel(){
     div.innerHTML='<div class="insight-inner"><div style="display:flex;gap:11px;align-items:flex-start"><div style="width:32px;height:32px;border-radius:9px;background:'+col+'1e;display:flex;align-items:center;justify-content:center;flex-shrink:0">'+insightIcon(it,col)+'</div><div style="flex:1;min-width:0"><div style="font-size:15.3px;font-weight:600;margin-bottom:3px">'+it.title+'</div><div style="font-size:13.6px;color:var(--t2);line-height:1.5">'+it.body+'</div></div></div></div>';
     return div;
   }
-  function visibleSlides(){return Array.prototype.slice.call(track.querySelectorAll('.insight-slide'));}
+  function allSlides(){return Array.prototype.slice.call(track.querySelectorAll('.insight-slide'));}
+  function visibleSlides(){return allSlides().slice(0,revealed);}
   function syncDots(){
     var n=visibleSlides().length;
     dotsWrap.innerHTML='';
@@ -1655,6 +1657,7 @@ function setupInsightCarousel(){
     }
   }
   function show(i){
+    if(i>=revealed&&revealed<total){revealed++;}
     var sl=visibleSlides();var n=sl.length;if(!n)return;
     cur=(i+n)%n;
     sl.forEach(function(s,si){
@@ -1765,7 +1768,7 @@ function renderDashboard(el){const now=new Date();const s=new Date(now.getFullYe
   document.getElementById('dash-notif')?.addEventListener('click',()=>{
   var existing=document.getElementById('notif-dropdown');
   if(existing){existing.remove();return;}
-  var o=PLANNED.filter(function(p){var d=new Date((p.NextDate||'').substring(0,10)+'T00:00:00');var today=new Date();today.setHours(0,0,0,0);var days=Math.round((d-today)/(86400000));p._days=days;return days<=7;});
+  var o=PLANNED.filter(function(p){var d=new Date((p.NextDate||'').substring(0,10)+'T00:00:00');var today=new Date();today.setHours(0,0,0,0);var days=Math.round((d-today)/(86400000));p._days=days;return days<=7;}).sort(function(a,b){return a._days-b._days;});
   var btn=document.getElementById('dash-notif');
   var rect=btn.getBoundingClientRect();
   var drop=document.createElement('div');
@@ -1781,7 +1784,7 @@ function renderDashboard(el){const now=new Date();const s=new Date(now.getFullYe
         return'<div style="display:flex;align-items:center;gap:9px;padding:9px 13px;border-top:1px solid var(--border2)">'
           +'<div style="flex:1"><div style="font-size:14.2px;font-weight:600">'+p.Name+'</div>'
           +'<div style="font-size:11.8px;color:'+u+';margin-top:2px">'+label+'</div></div>'
-          +'<div style="font-size:15.3px;font-weight:700;font-family:var(--mono);color:var(--red)">'+fmt(p.Amount,p.Currency)+'</div>'
+          +'<div style="font-size:15.3px;font-weight:700;font-family:var(--mono);color:'+(planIsIncome(p)?'var(--green)':'var(--red)')+'">'+(planIsIncome(p)?'+':'-')+fmt(p.Amount,p.Currency)+'</div>'
           +'</div>';
       }).join('');
   }
