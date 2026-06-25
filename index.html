@@ -2389,7 +2389,9 @@ function renderStatistics(el){
           if(typeof L==='undefined'){document.getElementById('tx-map').innerHTML='<div style="padding:20px;text-align:center;color:var(--t2);font-size:13px">Map library couldn\'t load (no connection?). Try again when online.</div>';return;}
           try{
             var map=L.map('tx-map',{scrollWheelZoom:true});
-            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'\u00a9 OpenStreetMap'}).addTo(map);
+            var isDark=(getTheme()!=='light');
+            var tileUrl=isDark?'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png':'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png';
+            L.tileLayer(tileUrl,{maxZoom:19,subdomains:'abcd',attribution:'\u00a9 OpenStreetMap \u00a9 CARTO'}).addTo(map);
             var pts=[];
             located.forEach(function(t){
               var la=parseFloat(t.gps_latitude),lo=parseFloat(t.gps_longitude);
@@ -2397,7 +2399,7 @@ function renderStatistics(el){
               var col=cat.Colour||'#4672c4';
               var sign=t.type==='income'?'+':'-';
               var amtCol=t.type==='income'?'#2db56e':'#e05252';
-              var marker=L.circleMarker([la,lo],{radius:8,color:'#fff',weight:2,fillColor:col,fillOpacity:0.9}).addTo(map);
+              var marker=L.circleMarker([la,lo],{radius:8,color:isDark?'#fff':'#2a2a2a',weight:2,fillColor:col,fillOpacity:0.9}).addTo(map);
               var dateStr=(t.date||'').substring(0,10);
               var payeeStr=t.payee?('<div style=\"color:#666\">'+t.payee+'</div>'):'';
               marker.bindPopup('<div style=\"font-family:sans-serif;min-width:130px\"><div style=\"font-weight:700;font-size:14px\">'+cat.Name+'</div>'+payeeStr+'<div style=\"color:'+amtCol+';font-weight:700;font-size:15px;margin:3px 0\">'+sign+fmt(t.amount,t.currency)+'</div><div style=\"color:#888;font-size:12px\">'+dateStr+(t.note?' \u00b7 '+t.note:'')+'</div></div>');
