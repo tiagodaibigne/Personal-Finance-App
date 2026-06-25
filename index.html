@@ -190,7 +190,7 @@ select.fi{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.o
 .insight-dot{width:6px;height:6px;border-radius:50%;background:var(--border);border:none;padding:0;cursor:pointer;transition:.25s}
 .insight-dot.on{background:#6f9ae8;width:18px;border-radius:99px}
 /* Smooth slide+fade between insights */
-.map-dark .leaflet-tile{filter:brightness(1.35) contrast(0.92)}
+.map-dark .leaflet-tile{filter:brightness(1.5) contrast(0.9)}.map-light .leaflet-tile{filter:brightness(0.94)}
 .map-dark .leaflet-popup-content-wrapper{background:#262626;color:#ececec}.map-dark .leaflet-popup-tip{background:#262626}.map-dark .leaflet-popup-content .pp-date{color:#9a9a9a !important}.map-dark .leaflet-popup-content .pp-payee{color:#b0b0b0 !important}.leaflet-popup-content .pp-date{color:#888}.leaflet-popup-content .pp-payee{color:#666}
 .insight-slide{position:absolute;top:0;left:0;right:0;opacity:0;transition:opacity .55s ease;pointer-events:none}
 .insight-slide.active{opacity:1;pointer-events:auto}
@@ -2390,9 +2390,9 @@ function renderStatistics(el){
         setTimeout(function(){
           if(typeof L==='undefined'){document.getElementById('tx-map').innerHTML='<div style="padding:20px;text-align:center;color:var(--t2);font-size:13px">Map library couldn\'t load (no connection?). Try again when online.</div>';return;}
           try{
-            var map=L.map('tx-map',{scrollWheelZoom:true});
-            if(isDark){var mc=document.getElementById('tx-map');if(mc)mc.classList.add('map-dark');}
             var isDark=(getTheme()!=='light');
+            var map=L.map('tx-map',{scrollWheelZoom:true});
+            var mc=document.getElementById('tx-map');if(mc)mc.classList.add(isDark?'map-dark':'map-light');
             var tileUrl=isDark?'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png':'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png';
             L.tileLayer(tileUrl,{maxZoom:19,subdomains:'abcd',attribution:'\u00a9 OpenStreetMap \u00a9 CARTO'}).addTo(map);
             var pts=[];
