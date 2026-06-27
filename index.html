@@ -417,7 +417,82 @@ function isTokenValid(){const e=localStorage.getItem('finance_token_exp');return
 function signIn(){tokenClient.requestAccessToken({prompt:''});}
 function signOut(){const t=gapi.client.getToken();if(t)google.accounts.oauth2.revoke(t.access_token);gapi.client.setToken(null);localStorage.removeItem('finance_token_exp');localStorage.removeItem('finance_sheet_id');location.reload();}
 async function getOrCreateSheet(){const cached=localStorage.getItem('finance_sheet_id');if(cached){sheetId=cached;return;}const res=await gapi.client.drive.files.list({q:`name='${SHEET_NAME}' and mimeType='application/vnd.google-apps.spreadsheet' and trashed=false`,fields:'files(id)'});if(res.result.files?.length>0){sheetId=res.result.files[0].id;}else{const cr=await gapi.client.sheets.spreadsheets.create({resource:{properties:{title:SHEET_NAME},sheets:['Transactions','Accounts','Categories','PlannedPayments','Budgets','ExchangeRates','Settings'].map(title=>({properties:{title}}))}});sheetId=cr.result.spreadsheetId;await initSheetHeaders();await seedDefaults();}localStorage.setItem('finance_sheet_id',sheetId);}
-async function initSheetHeaders(){await batchUpdate([{range:'Transactions!A1',values:[TX_HEADERS]},{range:'Accounts!A1',values:[['ID','Name','Symbol','Currency','InitialBalance','Colour','Active','CreatedAt']]},{range:'Categories!A1',values:[['ID','Name','Type','Icon','Colour','Labels','Active']]},{range:'PlannedPayments!A1',values:[['ID','Name','Amount','Currency','Category','Account','Frequency','NextDate','Payee','Active','Notes']]},{range:'Budgets!A1',values:[['ID','Category','Monthly','Yearly','Currency','Active']]},{range:'ExchangeRates!A1',values:[['Date','Base','Target','Rate']]},{range:'Settings!A1',values:[['Key','Value']]}]);}
+// Non-destructive schema migration: ensure newer columns exist on existing sheets.
+// Adds a header cell at the end of a tab if a required column is missing. Existing data
+// (in its original columns) is untouched. The Google Sheet remains the source of truth.
+// Resolve a category reference (could be an ID or a Name) to a valid category ID.
+// Returns the ID if found, else null (so callers can detect bad data rather than logging it).
+function resolveCategoryId(ref){
+  if(!ref)return null;
+  var all=[].concat(CATS.expense,CATS.income,CATS.transfer);
+  var byId=all.find(function(c){return c.ID===ref;});
+  if(byId)return byId.ID;
+  var byName=all.find(function(c){return (c.Name||'').toLowerCase()===String(ref).toLowerCase();});
+  if(byName)return byName.ID;
+  return null;
+}
+// Resolve an account reference (ID, Name, Symbol or Currency) to a valid account ID, else null.
+function resolveAccountId(ref){
+  if(!ref)return null;
+  var byId=ACCOUNTS.find(function(a){return a.ID===ref;});
+  if(byId)return byId.ID;
+  var byName=ACCOUNTS.find(function(a){return (a.Name||'').toLowerCase()===String(ref).toLowerCase();});
+  if(byName)return byName.ID;
+  var bySym=ACCOUNTS.find(function(a){return a.Symbol===ref||a.Currency===ref;});
+  if(bySym)return bySym.ID;
+  return null;
+}
+// Build a Transactions row from a planned payment. Returns {row} on success or {error} if
+// the category or account can't be resolved (so we never silently log to the wrong place).
+function buildPlannedTxRow(plan,dateStr){
+  var catId=resolveCategoryId(plan.Category);
+  if(!catId)return {error:'category'};
+  var accId=resolveAccountId(plan.Account);
+  if(!accId)return {error:'account'};
+  var catObj=[].concat(CATS.income).find(function(c){return c.ID===catId;});
+  var isInc=!!catObj;
+  var sheetType=isInc?'Income':'Expenses';
+  var absAmt=Math.abs(parseFloat(plan.Amount)||0);
+  var signedAmt=isInc?absAmt:-absAmt;
+  var refGBP=toGBP(absAmt,plan.Currency);
+  var signedRef=isInc?Math.abs(refGBP):-Math.abs(refGBP);
+  // Payment type: use the planned payment's stored type, default to bank transfer.
+  var payType=plan.PaymentType||'Bank transfer';
+  var row=TX_HEADERS.map(function(h){
+    var map={account:accId,category:catId,currency:plan.Currency||'GBP',
+      amount:String(signedAmt),ref_currency_amount:String(signedRef),
+      type:sheetType,payment_type:payType,
+      note:plan.Name,date:dateStr,payee:plan.Payee||''};
+    return map[h]!==undefined?map[h]:'';
+  });
+  return {row:row};
+}
+
+async function migrateSchema(){
+  if(typeof sheetId==='undefined'||!sheetId)return;
+  // Each entry: tab -> list of columns that should exist (in any position).
+  var required={
+    'PlannedPayments':['ID','Name','Amount','Currency','Category','Account','Frequency','NextDate','Payee','Active','Notes','PaymentType'],
+    'Budgets':['ID','Category','Monthly','Yearly','Currency','Active','Name','Account','PaymentType']
+  };
+  for(var tab in required){
+    try{
+      var rows=await readSheet(tab);
+      var header=(rows&&rows[0])?rows[0].slice():[];
+      var missing=required[tab].filter(function(col){return header.indexOf(col)<0;});
+      if(missing.length){
+        var newHeader=header.concat(missing);
+        // Write the extended header row (row 1). Existing data rows below are unaffected.
+        await gapi.client.sheets.spreadsheets.values.update({
+          spreadsheetId:sheetId,range:tab+'!A1',valueInputOption:'RAW',
+          resource:{values:[newHeader]}
+        });
+      }
+    }catch(e){console.error('migrateSchema '+tab,e);}
+  }
+}
+
+async function initSheetHeaders(){await batchUpdate([{range:'Transactions!A1',values:[TX_HEADERS]},{range:'Accounts!A1',values:[['ID','Name','Symbol','Currency','InitialBalance','Colour','Active','CreatedAt']]},{range:'Categories!A1',values:[['ID','Name','Type','Icon','Colour','Labels','Active']]},{range:'PlannedPayments!A1',values:[['ID','Name','Amount','Currency','Category','Account','Frequency','NextDate','Payee','Active','Notes','PaymentType']]},{range:'Budgets!A1',values:[['ID','Category','Monthly','Yearly','Currency','Active','Name','Account','PaymentType']]},{range:'ExchangeRates!A1',values:[['Date','Base','Target','Rate']]},{range:'Settings!A1',values:[['Key','Value']]}]);}
 async function seedDefaults(){const now=new Date().toISOString();const accs=[
   ['£','£ Sterling','£','GBP','0','#4672c4','TRUE',now],
   ['€','€ Euro','€','EUR','0','#2e7a72','TRUE',now],
@@ -692,7 +767,7 @@ function openOffline(){
 }
 function hideSplash(){setTimeout(()=>{const s=document.getElementById('splash');s.classList.add('hide');setTimeout(()=>s.remove(),400);},900);}
 function showAuth(){hideSplash();document.getElementById('auth').style.display='flex';document.getElementById('signin-btn').onclick=signIn;}
-async function onSignedIn(){try{const t=gapi.client.getToken()?.access_token;if(t){const r=await fetch('https://www.googleapis.com/oauth2/v3/userinfo',{headers:{Authorization:'Bearer '+t}});userProfile=await r.json();}}catch(e){}hideSplash();document.getElementById('auth').style.display='none';document.getElementById('main').style.display='flex';document.getElementById('p-dashboard').innerHTML='<div class="spinner"></div>';try{await getOrCreateSheet();if(typeof fetchLiveRates==='function'){await fetchLiveRates();}await loadAll();await checkAutoPlanned();setupNav();setupFab();setupModals();render('dashboard');if(typeof flushQueue==='function'&&queueLength()>0){flushQueue(false);}}catch(e){console.error(e);document.getElementById('p-dashboard').innerHTML='<div class="empty"><p>Failed to connect to Google Sheets.<br>Check your internet connection and that you added the authorised domain in Google Cloud Console.</p><button class="btn pri" style="margin-top:12px" onclick="location.reload()">Retry</button></div>';}}
+async function onSignedIn(){try{const t=gapi.client.getToken()?.access_token;if(t){const r=await fetch('https://www.googleapis.com/oauth2/v3/userinfo',{headers:{Authorization:'Bearer '+t}});userProfile=await r.json();}}catch(e){}hideSplash();document.getElementById('auth').style.display='none';document.getElementById('main').style.display='flex';document.getElementById('p-dashboard').innerHTML='<div class="spinner"></div>';try{await getOrCreateSheet();if(typeof migrateSchema==='function'){await migrateSchema();}if(typeof fetchLiveRates==='function'){await fetchLiveRates();}await loadAll();await checkAutoPlanned();setupNav();setupFab();setupModals();render('dashboard');if(typeof flushQueue==='function'&&queueLength()>0){flushQueue(false);}}catch(e){console.error(e);document.getElementById('p-dashboard').innerHTML='<div class="empty"><p>Failed to connect to Google Sheets.<br>Check your internet connection and that you added the authorised domain in Google Cloud Console.</p><button class="btn pri" style="margin-top:12px" onclick="location.reload()">Retry</button></div>';}}
 function setupNav(){document.querySelectorAll('.ni').forEach(btn=>{btn.addEventListener('click',()=>{document.querySelectorAll('.ni').forEach(b=>b.classList.remove('on'));btn.classList.add('on');curPage=btn.dataset.p;document.querySelectorAll('.page').forEach(p=>p.classList.remove('on'));document.getElementById('p-'+curPage).classList.add('on');document.getElementById('scroll').scrollTop=0;render(curPage);document.getElementById('fab').style.display=curPage==='more'?'none':'flex';});});
 document.getElementById('scroll').addEventListener('click',function(e){var row=e.target.closest('[data-txidx]');if(row){var i=parseInt(row.dataset.txidx);if(!isNaN(i)&&TX[i])openEditTx(TX[i]);}});}
 function goToPage(p){
@@ -2489,18 +2564,12 @@ function renderPlanning(el){
           if(!plan)return;
           btn.disabled=true;btn.textContent='Logging…';
           try{
-            var isInc=([].concat(CATS.income)).find(function(cat){return cat.ID===plan.Category||cat.Name===plan.Category;});
-            var txType=isInc?'Income':'Expenses';
-            var ref=toGBP(plan&&plan.Amount||0,plan&&plan.Currency||'GBP');
-            var row=TX_HEADERS.map(function(h){
-              var map={account:plan.Account||ACCOUNTS[0]&&ACCOUNTS[0].ID||'£',
-                category:plan.Category,currency:plan.Currency,
-                amount:plan.Amount,ref_currency_amount:String(ref),
-                type:txType,payment_type:'transfer',
-                note:plan.Name,date:getLocalDateTimeStr(),payee:plan.Payee||''};
-              return map[h]!==undefined?map[h]:'';
-            });
-            await appendRow('Transactions',row);
+            var built=buildPlannedTxRow(plan,getLocalDateTimeStr());
+            if(built.error){
+              toast(built.error==='category'?'Category not found — fix it in the planned payment':'Account not found — fix it in the planned payment','err');
+              btn.disabled=false;btn.textContent='Log now';return;
+            }
+            await appendRow('Transactions',built.row);
             await loadAll();
             toast(plan.Name+' logged ✓','suc');
             redraw();
@@ -2636,6 +2705,8 @@ function openEditPlanned(plan,onDone){
   var overlay=document.createElement('div');
   overlay.className='overlay';overlay.style.zIndex='300';
   var allCats=[].concat(CATS.expense,CATS.income);
+  var payTypes=['Cash','Debit card','Credit card','Bank transfer','Voucher','Mobile payment','Web payment'];
+  var payOpts=payTypes.map(function(p){return '<option value="'+p+'"'+((plan.PaymentType||'Bank transfer')===p?' selected':'')+'>'+p+'</option>';}).join('');
   var catOpts=allCats.slice().sort(function(a,b){return a.Name.localeCompare(b.Name);}).map(function(cat){
     return '<option value="'+cat.ID+'"'+(plan.Category===cat.ID||plan.Category===cat.Name?' selected':'')+'>'+cat.Name+'</option>';
   }).join('');
@@ -2653,6 +2724,7 @@ function openEditPlanned(plan,onDone){
     +'</select></div></div>'
     +'<div class="fg"><label class="fl">Account</label><select class="fi" id="ep-acc">'+accOpts+'</select></div>'
     +'<div class="fg"><label class="fl">Category</label><select class="fi" id="ep-cat">'+catOpts+'</select></div>'
+    +'<div class="fg"><label class="fl">Payment type</label><select class="fi" id="ep-paytype">'+payOpts+'</select></div>'
     +'<div class="fg"><label class="fl">Frequency</label>'
     +'<select class="fi" id="ep-freq">'
     +'<option value="Monthly"'+(plan.Frequency==='Monthly'?' selected':'')+'>Monthly</option>'
@@ -2688,6 +2760,7 @@ function openEditPlanned(plan,onDone){
           Payee:document.getElementById('ep-payee').value.trim(),
           Active:'TRUE',
           Notes:plan.Notes||'',
+          PaymentType:(document.getElementById('ep-paytype')&&document.getElementById('ep-paytype').value)||'Bank transfer',
         };
         return map[h]!==undefined?map[h]:(rows[idx][headers.indexOf(h)]||'');
       });
@@ -2715,6 +2788,7 @@ function openAddPlanned(onDone){
     +'<select class="fi" id="np-cur" style="width:80px"><option>GBP</option><option>EUR</option><option>USD</option></select></div></div>'
     +'<div class="fg"><label class="fl">Account</label><select class="fi" id="np-acc">'+accOpts+'</select></div>'
     +'<div class="fg"><label class="fl">Category</label><select class="fi" id="np-cat">'+catOpts+'</select></div>'
+    +'<div class="fg"><label class="fl">Payment type</label><select class="fi" id="np-paytype">'+payOpts+'</select></div>'
     +'<div class="fg"><label class="fl">How often</label>'
     +'<select class="fi" id="np-freq">'
     +'<option value="Monthly">Monthly</option>'
@@ -2748,6 +2822,7 @@ function openAddPlanned(onDone){
     var cur=document.getElementById('np-cur').value;
     var acc=document.getElementById('np-acc').value;
     var cat=document.getElementById('np-cat').value;
+    var payType=(document.getElementById('np-paytype')&&document.getElementById('np-paytype').value)||'Bank transfer';
     var freq=document.getElementById('np-freq').value;
     var date=document.getElementById('np-date').value;
     var dayOfMonth=document.getElementById('np-day')&&document.getElementById('np-day').value?document.getElementById('np-day').value:'';
@@ -2758,7 +2833,7 @@ function openAddPlanned(onDone){
     try{
       var id='plan_'+Date.now();
       var notes='day:'+dayOfMonth+';auto:'+autoLog;
-      await appendRow('PlannedPayments',[id,name,amount,cur,cat,acc,freq,date,payee,'TRUE',notes]);
+      await appendRow('PlannedPayments',[id,name,amount,cur,cat,acc,freq,date,payee,'TRUE',notes,payType]);
       await loadAll();close();toast(name+' added ✓','suc');if(onDone)onDone();
     }catch(e){toast('Failed to save','err');}
     finally{btn.disabled=false;btn.textContent='Add Payment';}
@@ -2775,10 +2850,15 @@ function openEditBudget(b,onDone){
   var catOpts=CATS.expense.map(function(cat){
     return '<option value="'+cat.ID+'"'+(b.Category===cat.ID||b.Category===cat.Name?' selected':'')+'>'+cat.Name+'</option>';
   }).join('');
+  var accOpts='<option value="">Any account</option>'+ACCOUNTS.map(function(a){return '<option value="'+a.ID+'"'+((b.Account||'')===a.ID?' selected':'')+'>'+a.Name+'</option>';}).join('');
+  var payTypes=['Cash','Debit card','Credit card','Bank transfer','Voucher','Mobile payment','Web payment'];
+  var payOpts='<option value="">Any type</option>'+payTypes.map(function(p){return '<option value="'+p+'"'+((b.PaymentType||'')===p?' selected':'')+'>'+p+'</option>';}).join('');
   var bname=(b.Name&&b.Name!==b.Category)?b.Name:'';
   overlay.innerHTML='<div class="sheet"><div class="handle"></div><div class="mtitle">Edit Budget</div>'
     +'<div class="fg"><label class="fl">Budget name (optional)</label><input class="fi" id="eb-name" value="'+bname+'"/></div>'
     +'<div class="fg"><label class="fl">Category</label><select class="fi" id="eb-cat">'+catOpts+'</select></div>'
+    +'<div class="fg"><label class="fl">Account (optional)</label><select class="fi" id="eb-acc">'+accOpts+'</select></div>'
+    +'<div class="fg"><label class="fl">Payment type (optional)</label><select class="fi" id="eb-paytype">'+payOpts+'</select></div>'
     +'<div class="fg"><label class="fl">Monthly limit</label>'
     +'<div style="display:flex;gap:6px"><input class="fi big" id="eb-monthly" type="number" value="'+(Math.abs(parseFloat(b.Monthly))||0)+'" style="flex:1"/>'
     +'<select class="fi" id="eb-cur" style="width:80px">'
@@ -2803,7 +2883,9 @@ function openEditBudget(b,onDone){
       if(idx<1){toast('Budget not found','err');btn.disabled=false;btn.textContent='Save changes';return;}
       var map={ID:b.ID,Category:document.getElementById('eb-cat').value,
         Monthly:monthly,Yearly:yearly,Currency:document.getElementById('eb-cur').value,
-        Active:'TRUE',Name:document.getElementById('eb-name').value.trim()||document.getElementById('eb-cat').value};
+        Active:'TRUE',Name:document.getElementById('eb-name').value.trim()||document.getElementById('eb-cat').value,
+        Account:(document.getElementById('eb-acc')&&document.getElementById('eb-acc').value)||'',
+        PaymentType:(document.getElementById('eb-paytype')&&document.getElementById('eb-paytype').value)||''};
       var newRow=headers.map(function(h){return map[h]!==undefined?map[h]:(rows[idx][headers.indexOf(h)]||'');});
       await gapi.client.sheets.spreadsheets.values.update({
         spreadsheetId:sheetId,range:'Budgets!A'+(idx+1),
@@ -2821,8 +2903,13 @@ function openAddBudget(onDone){
   var overlay=document.createElement('div');
   overlay.className='overlay';overlay.style.zIndex='300';
   var catOpts=CATS.expense.slice().sort(function(a,b){return a.Name.localeCompare(b.Name);}).map(function(c){return'<option value="'+c.ID+'">'+c.Name+'</option>';}).join('');
+  var accOpts='<option value="">Any account</option>'+ACCOUNTS.map(function(a){return'<option value="'+a.ID+'">'+a.Name+'</option>';}).join('');
+  var payTypes=['Cash','Debit card','Credit card','Bank transfer','Voucher','Mobile payment','Web payment'];
+  var payOpts='<option value="">Any type</option>'+payTypes.map(function(p){return'<option value="'+p+'">'+p+'</option>';}).join('');
   overlay.innerHTML='<div class="sheet"><div class="handle"></div><div class="mtitle">Add Budget</div>'
     +'<div class="fg"><label class="fl">Budget name (optional)</label><input class="fi" id="nb-name" placeholder="e.g. Monthly food, Rent budget"/></div>'+'<div class="fg"><label class="fl">Category</label><select class="fi" id="nb-cat">'+catOpts+'</select></div>'
+    +'<div class="fg"><label class="fl">Account (optional)</label><select class="fi" id="nb-acc">'+accOpts+'</select></div>'
+    +'<div class="fg"><label class="fl">Payment type (optional)</label><select class="fi" id="nb-paytype">'+payOpts+'</select></div>'
     +'<div class="fg"><label class="fl">Monthly limit</label>'
     +'<div style="display:flex;gap:6px"><input class="fi big" id="nb-monthly" type="number" placeholder="0.00" style="flex:1"/>'
     +'<select class="fi" id="nb-cur" style="width:80px"><option>GBP</option><option>EUR</option><option>USD</option></select></div></div>'
@@ -2842,7 +2929,9 @@ function openAddBudget(onDone){
     try{
       var id='bud_'+Date.now();
       var bname=document.getElementById('nb-name').value.trim();
-      await appendRow('Budgets',[id,cat,monthly,yearly,cur,'TRUE',bname||cat]);
+      var bacc=(document.getElementById('nb-acc')&&document.getElementById('nb-acc').value)||'';
+      var bpay=(document.getElementById('nb-paytype')&&document.getElementById('nb-paytype').value)||'';
+      await appendRow('Budgets',[id,cat,monthly,yearly,cur,'TRUE',bname||cat,bacc,bpay]);
       await loadAll();close();toast('Budget added ✓','suc');if(onDone)onDone();
     }catch(e){toast('Failed to save','err');}
     finally{btn.disabled=false;btn.textContent='Add Budget';}
@@ -3367,23 +3456,11 @@ async function checkAutoPlanned(){
       return tx.note===p.Name&&(tx.date||'').substring(0,10)===nextStr;
     });
     if(dupCheck){await advancePlannedDate(p);continue;}
-    // Determine income vs expense
-    var catObj=([].concat(CATS.income)).find(function(cat){return cat.ID===p.Category||cat.Name===p.Category;});
-    var isInc=!!catObj;
-    var sheetType=isInc?'Income':'Expenses';
-    var absAmt=Math.abs(parseFloat(p.Amount)||0);
-    var signedAmt=isInc?absAmt:-absAmt;
-    var refGBP=toGBP(absAmt,p.Currency);
-    var signedRef=isInc?Math.abs(refGBP):-Math.abs(refGBP);
-    var row=TX_HEADERS.map(function(h){
-      var map={account:p.Account||(ACCOUNTS[0]&&ACCOUNTS[0].ID)||'£',
-        category:p.Category,currency:p.Currency,
-        amount:String(signedAmt),ref_currency_amount:String(signedRef),
-        type:sheetType,payment_type:'transfer',
-        note:p.Name,date:nextStr+' 09:00:00',payee:p.Payee||''};
-      return map[h]!==undefined?map[h]:'';
-    });
-    await appendRow('Transactions',row);
+    // Build the row robustly. If the planned payment has a bad category/account, skip it
+    // (advance its date) rather than logging bad data to the wrong place.
+    var built=buildPlannedTxRow(p,nextStr+' 09:00:00');
+    if(built.error){console.warn('Skipping auto-log for '+p.Name+': '+built.error+' unresolved');await advancePlannedDate(p);continue;}
+    await appendRow('Transactions',built.row);
     logged++;
     await advancePlannedDate(p);
   }
