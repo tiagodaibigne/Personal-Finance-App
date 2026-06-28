@@ -395,13 +395,13 @@ function captureLocation(){
   return new Promise(function(resolve){
     if(!locationEnabled()||typeof navigator==='undefined'||!navigator.geolocation){resolve(null);return;}
     var done=false;
-    var timer=setTimeout(function(){if(!done){done=true;resolve(null);}},6000);
+    var timer=setTimeout(function(){if(!done){done=true;resolve(null);}},5000);
     try{
       navigator.geolocation.getCurrentPosition(function(pos){
         if(done)return;done=true;clearTimeout(timer);
         resolve({lat:pos.coords.latitude,lng:pos.coords.longitude,acc:pos.coords.accuracy});
       },function(){if(done)return;done=true;clearTimeout(timer);resolve(null);},
-      {enableHighAccuracy:true,timeout:5500,maximumAge:60000});
+      {enableHighAccuracy:false,timeout:4500,maximumAge:300000});
     }catch(e){if(!done){done=true;clearTimeout(timer);resolve(null);}}
   });
 }
@@ -737,12 +737,12 @@ function toggleTheme(){var t=getTheme()==='light'?'dark':'light';setTheme(t);if(
 async function boot(){try{applyTheme(getTheme());hideAmounts=localStorage.getItem('financeHideAmounts')==='1';
   // If we're offline but have a previous session + cached data, open straight into
   // an offline view so the app launches without a connection.
-  if(!isOnline()&&isTokenValid()&&hasDataCache()){openOffline();return;}
+  if(!isOnline()&&isTokenValid()){openOffline();return;}
   await initGoogle();if(isTokenValid()&&gapi.client.getToken()){await onSignedIn();}else{hideSplash();showAuth();}
   }catch(e){
     console.error(e);
     // Network/Google init failed. If we have a cached session+data, show offline view.
-    if(isTokenValid()&&hasDataCache()){openOffline();}
+    if(isTokenValid()){openOffline();}
     else{hideSplash();showAuth();}
   }}
 // Open the app from local cache when there's no connection.
@@ -750,11 +750,18 @@ function openOffline(){
   hideSplash();
   document.getElementById('auth').style.display='none';
   document.getElementById('main').style.display='flex';
-  loadFromCache();
+  var hadCache=loadFromCache();
   if(typeof fetchLiveRates==='function'){try{fetchLiveRates();}catch(e){}}
   setupNav();setupFab();setupModals();
   render('dashboard');
-  if(typeof toast==='function')toast('Offline — showing saved data','');
+  if(hadCache){
+    if(typeof toast==='function')toast('Offline — showing saved data','');
+  } else {
+    // No cached data survived (iOS cleared it). Still open the app; show a gentle note.
+    var pd=document.getElementById('p-dashboard');
+    if(pd)pd.innerHTML='<div class="empty" style="padding:30px 18px;text-align:center"><div style="font-size:30px;margin-bottom:10px">\uD83D\uDCF6</div><div style="font-size:15px;font-weight:600;margin-bottom:6px">You\'re offline</div><div style="font-size:13.2px;color:var(--t2);line-height:1.5">Your saved data isn\'t available right now, but the app is open. Your figures will load as soon as you\'re back online.</div></div>';
+    if(typeof toast==='function')toast('Offline — connect to load your data','');
+  }
   // When the connection returns, do a full sync + reload.
   if(typeof window!=='undefined'){
     window.addEventListener('online',function once(){
@@ -767,7 +774,29 @@ function openOffline(){
 }
 function hideSplash(){setTimeout(()=>{const s=document.getElementById('splash');s.classList.add('hide');setTimeout(()=>s.remove(),400);},900);}
 function showAuth(){hideSplash();document.getElementById('auth').style.display='flex';document.getElementById('signin-btn').onclick=signIn;}
-async function onSignedIn(){try{const t=gapi.client.getToken()?.access_token;if(t){const r=await fetch('https://www.googleapis.com/oauth2/v3/userinfo',{headers:{Authorization:'Bearer '+t}});userProfile=await r.json();}}catch(e){}hideSplash();document.getElementById('auth').style.display='none';document.getElementById('main').style.display='flex';document.getElementById('p-dashboard').innerHTML='<div class="spinner"></div>';try{await getOrCreateSheet();if(typeof migrateSchema==='function'){await migrateSchema();}if(typeof fetchLiveRates==='function'){await fetchLiveRates();}await loadAll();await checkAutoPlanned();setupNav();setupFab();setupModals();render('dashboard');if(typeof flushQueue==='function'&&queueLength()>0){flushQueue(false);}}catch(e){console.error(e);document.getElementById('p-dashboard').innerHTML='<div class="empty"><p>Failed to connect to Google Sheets.<br>Check your internet connection and that you added the authorised domain in Google Cloud Console.</p><button class="btn pri" style="margin-top:12px" onclick="location.reload()">Retry</button></div>';}}
+async function onSignedIn(){try{const t=gapi.client.getToken()?.access_token;if(t){const r=await fetch('https://www.googleapis.com/oauth2/v3/userinfo',{headers:{Authorization:'Bearer '+t}});userProfile=await r.json();}}catch(e){}hideSplash();document.getElementById('auth').style.display='none';document.getElementById('main').style.display='flex';
+  // CACHE-FIRST: if we have cached data, show it immediately so the app feels instant
+  // even on a weak connection. The fresh data loads in the background below.
+  var shownFromCache=false;
+  if(typeof hasDataCache==='function'&&hasDataCache()){
+    try{loadFromCache();if(typeof fetchLiveRates==='function'){try{fetchLiveRates();}catch(e){}}setupNav();setupFab();setupModals();render('dashboard');shownFromCache=true;}catch(e){console.error('cache show',e);}
+  }
+  if(!shownFromCache){document.getElementById('p-dashboard').innerHTML='<div class="spinner"></div>';}
+  try{
+    await getOrCreateSheet();
+    if(typeof migrateSchema==='function'){await migrateSchema();}
+    if(typeof fetchLiveRates==='function'){await fetchLiveRates();}
+    await loadAll();
+    await checkAutoPlanned();
+    setupNav();setupFab();setupModals();
+    render(typeof curPage!=='undefined'&&curPage?curPage:'dashboard');
+    if(typeof flushQueue==='function'&&queueLength()>0){flushQueue(false);}
+  }catch(e){
+    console.error(e);
+    // If we already showed cached data, keep it — just note we couldn't refresh.
+    if(shownFromCache){if(typeof toast==='function')toast('Showing saved data — couldn\'t reach Google','');}
+    else{document.getElementById('p-dashboard').innerHTML='<div class="empty"><p>Failed to connect to Google Sheets.<br>Check your internet connection and that you added the authorised domain in Google Cloud Console.</p><button class="btn pri" style="margin-top:12px" onclick="location.reload()">Retry</button></div>';}
+  }}
 function setupNav(){document.querySelectorAll('.ni').forEach(btn=>{btn.addEventListener('click',()=>{document.querySelectorAll('.ni').forEach(b=>b.classList.remove('on'));btn.classList.add('on');curPage=btn.dataset.p;document.querySelectorAll('.page').forEach(p=>p.classList.remove('on'));document.getElementById('p-'+curPage).classList.add('on');document.getElementById('scroll').scrollTop=0;render(curPage);document.getElementById('fab').style.display=curPage==='more'?'none':'flex';});});
 document.getElementById('scroll').addEventListener('click',function(e){var row=e.target.closest('[data-txidx]');if(row){var i=parseInt(row.dataset.txidx);if(!isNaN(i)&&TX[i])openEditTx(TX[i]);}});}
 function goToPage(p){
