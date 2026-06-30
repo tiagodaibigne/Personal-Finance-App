@@ -295,9 +295,13 @@ const getAcc=function(id){
   })||{Name:id,Symbol:id,Currency:id.length<=3?id:'GBP',ID:id};
 };
 const getStats=(txs,s,e)=>{
+  // Normalise the end boundary to the end of its day so entries timestamped later
+  // on the final day of a period (e.g. an entry made this afternoon on month-end) are included.
+  var eEnd=e;
+  if(e){eEnd=new Date(e);if(eEnd.getHours()===0&&eEnd.getMinutes()===0&&eEnd.getSeconds()===0){eEnd.setHours(23,59,59,999);}}
   const f=txs.filter(function(tx){
-    if(!s&&!e)return true;
-    var d=new Date(tx.date);return d>=s&&d<=e;
+    if(!s&&!eEnd)return true;
+    var d=new Date(tx.date);return d>=s&&d<=eEnd;
   });
   // Income and expenses use absolute values for totals
   // Transfers are EXCLUDED from income/expense stats (internal movements)
@@ -3455,6 +3459,43 @@ function openIconPicker(catId,onDone){
 }
 
 function openCatManager(){const overlay=document.createElement('div');overlay.className='overlay';overlay.style.zIndex='300';let ct='expense';overlay.innerHTML=`<div class="sheet"><div class="handle"></div><div class="mtitle">Manage Categories</div><div class="tt" id="cm-tt"><button class="tb on exp" data-ct="expense">Expense</button><button class="tb" data-ct="income">Income</button></div><div id="cm-list"></div><div style="border-top:1px solid var(--border2);padding-top:13px;margin-top:10px"><div style="font-size:13px;font-weight:600;color:var(--t2);margin-bottom:9px">Add new category</div><div style="display:flex;gap:6px;margin-bottom:9px"><input class="fi" id="nc-name" placeholder="Category name" style="flex:1"/><input class="fi" id="nc-emoji" placeholder="🏷" style="width:52px;text-align:center;font-size:18.9px"/></div><div class="swatches" id="nc-sw"></div><button class="btn pri" id="nc-add">Add Category</button></div><button class="btn sec" id="cm-close">Done</button></div>`;document.body.appendChild(overlay);requestAnimationFrame(()=>overlay.classList.add('on'));const buildSw=()=>{const sw=document.getElementById('nc-sw');if(!sw)return;var isCustom=CAT_COLOURS.indexOf(selColour)<0;sw.innerHTML=CAT_COLOURS.map(c=>`<div class="sw${c===selColour?' on':''}" data-c="${c}" style="background:${c}"></div>`).join('')+`<label class="sw${isCustom?' on':''}" style="background:conic-gradient(from 0deg,#e05252,#e6c34a,#52b06a,#3ba8a8,#4672c4,#a05ba8,#e05252);position:relative;cursor:pointer;display:inline-flex;align-items:center;justify-content:center" title="Custom colour"><input type="color" id="nc-custom" value="${isCustom?selColour:'#4672c4'}" style="opacity:0;position:absolute;width:100%;height:100%;cursor:pointer"/>${isCustom?'<span style="width:6px;height:6px;background:#fff;border-radius:50%"></span>':''}</label>`;sw.querySelectorAll('.sw[data-c]').forEach(s=>s.addEventListener('click',()=>{selColour=s.dataset.c;buildSw();}));var cp=document.getElementById('nc-custom');if(cp)cp.addEventListener('input',function(e){selColour=e.target.value;buildSw();});};const buildList=async()=>{const l=document.getElementById('cm-list');if(!l)return;const cats=(ct==='expense'?CATS.expense:CATS.income);l.innerHTML=cats.length?cats.map((c,i)=>`<div style="display:flex;align-items:center;gap:9px;padding:9px 0;border-bottom:1px solid var(--border2)"><button data-iconfor="${c.ID}" title="Edit category" style="width:30px;height:30px;border-radius:8px;background:${c.Colour}14;border:1px solid ${c.Colour}33;display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0">${getCatIcon(c,c.Colour)}</button><span style="flex:1;font-size:15.3px;font-weight:500">${c.Name}</span><button data-iconfor2="${c.ID}" style="background:var(--bg-input);border:1px solid var(--border2);color:var(--t2);cursor:pointer;font-size:11.8px;padding:4px 8px;border-radius:6px;font-family:var(--font)">Edit</button><button data-id="${c.ID}" style="background:none;border:none;color:var(--t3);cursor:pointer;font-size:15.3px;padding:3px">✕</button></div>`).join(''):'<div style="color:var(--t2);font-size:14.2px;padding:10px 0">No categories yet.</div>';l.querySelectorAll('[data-iconfor],[data-iconfor2]').forEach(b=>b.addEventListener('click',()=>{var id=b.dataset.iconfor||b.dataset.iconfor2;openIconPicker(id,buildList);}));l.querySelectorAll('button[data-id]').forEach(btn=>btn.addEventListener('click',async()=>{btn.disabled=true;try{const rows=await readSheet('Categories');const idx=rows.findIndex((r,i)=>i>0&&r[0]===btn.dataset.id);if(idx>0){await gapi.client.sheets.spreadsheets.values.update({spreadsheetId:sheetId,range:`Categories!G${idx+1}`,valueInputOption:'RAW',resource:{values:[['FALSE']]}});await loadAll();buildList();toast('Removed');}}catch(e){toast('Error','err');}}));};overlay.querySelectorAll('[data-ct]').forEach(b=>b.addEventListener('click',()=>{ct=b.dataset.ct;overlay.querySelectorAll('[data-ct]').forEach(x=>x.classList.remove('on','exp','inc'));b.classList.add('on',ct==='expense'?'exp':'inc');buildList();}));document.getElementById('nc-add').addEventListener('click',async()=>{const name=document.getElementById('nc-name').value.trim();if(!name){toast('Enter a name','err');return;}const btn=document.getElementById('nc-add');btn.disabled=true;btn.textContent='Saving…';try{await appendRow('Categories',['cat_'+Date.now(),name,ct,'other',selColour,'','TRUE']);await loadAll();buildList();document.getElementById('nc-name').value='';toast('Added ✓','suc');}catch(e){toast('Failed','err');}finally{btn.disabled=false;btn.textContent='Add Category';}});const close=()=>{overlay.classList.remove('on');setTimeout(()=>overlay.remove(),300);render('more');};document.getElementById('cm-close').addEventListener('click',close);overlay.addEventListener('click',e=>{if(e.target===overlay)close();});buildSw();buildList();}
+// Open the add-entry modal pre-filled from an existing transaction, but with today's date/time.
+// Used by the "Duplicate entry" button so a repeated entry doesn't need re-typing.
+function duplicateTx(tx){
+  // Determine type (expense/income/transfer) from the source transaction.
+  var t=(tx.type||'expense').toLowerCase();
+  if(t!=='income'&&t!=='transfer')t='expense';
+  txType=t;
+  // Pre-select the same category.
+  selCat=tx.category||null;
+  // Fill the amount (absolute) and text fields.
+  var amt=Math.abs(parseFloat(tx.amount)||0);
+  var amtEl=document.getElementById('m-amt');if(amtEl)amtEl.value=amt?String(amt):'';
+  var noteEl=document.getElementById('m-note');if(noteEl)noteEl.value=tx.note||'';
+  var labEl=document.getElementById('m-labels');if(labEl)labEl.value=tx.labels||'';
+  var payEl=document.getElementById('m-payee');if(payEl)payEl.value=tx.payee||'';
+  if(document.getElementById('m-paytype'))document.getElementById('m-paytype').value=tx.payment_type||'Cash';
+  // Today's date and current time (the whole point of duplicate).
+  document.getElementById('m-date').value=new Date().toLocaleDateString('en-CA');
+  var nowTime=new Date();
+  var hh=String(nowTime.getHours()).padStart(2,'0');
+  var mm=String(nowTime.getMinutes()).padStart(2,'0');
+  if(document.getElementById('m-time'))document.getElementById('m-time').value=hh+':'+mm;
+  // Populate the account dropdowns and pre-select the source account.
+  var accSel=document.getElementById('m-acc');var toSel=document.getElementById('m-to');
+  if(accSel)accSel.innerHTML=ACCOUNTS.map(function(a){return'<option value="'+a.ID+'"'+(a.ID===tx.account?' selected':'')+'>'+a.Symbol+' '+a.Name+'</option>';}).join('');
+  if(toSel)toSel.innerHTML=ACCOUNTS.map(function(a){return'<option value="'+a.ID+'">'+a.Symbol+' '+a.Name+'</option>';}).join('');
+  // Currency, if the add modal exposes it.
+  if(document.getElementById('m-currency')&&tx.currency)document.getElementById('m-currency').value=tx.currency;
+  setTxType(t);
+  if(typeof buildCatGrid==='function')buildCatGrid(t==='income'?'income':'expense');
+  openModal('modal-tx');
+  if(typeof setupLabelAutocomplete==='function')setupLabelAutocomplete();
+  if(typeof setupPayeeAutocomplete==='function')setupPayeeAutocomplete();
+  var mlg=document.getElementById('m-labels-group');if(mlg)mlg.style.display=labelsVisible()?'':'none';
+  if(typeof toast==='function')toast('Duplicated — set and save','');
+}
+
 function openEditTx(tx){
   var overlay=document.createElement('div');
   overlay.className='overlay';overlay.style.zIndex='250';
@@ -3469,7 +3510,14 @@ function openEditTx(tx){
     var sel=tx.category===c.ID;
     return '<button class="cc'+(sel?' on':'')+'" data-cat="'+c.ID+'" style="'+(sel?'border-color:'+c.Colour+';background:'+c.Colour+'18':'')+'"><div style="width:16px;height:16px;border-radius:50%;background:'+c.Colour+'28;margin-bottom:2px"></div><span class="lb">'+c.Name+'</span></button>';
   }).join('');
-  var accOpts=ACCOUNTS.map(function(a){return'<option value="'+a.ID+'"'+(tx.account===a.ID||tx.account===a.Symbol?' selected':'')+'>'+a.Symbol+' '+a.Name+'</option>';}).join('');
+  // Resolve the transaction's stored account. Match strictly by ID; fall back to Symbol/Name
+  // for older rows. This guarantees the edit screen shows the account the entry was created with,
+  // rather than silently defaulting to the first account in the list.
+  var txAccMatch=ACCOUNTS.find(function(a){return a.ID===tx.account;})
+    ||ACCOUNTS.find(function(a){return a.Symbol===tx.account||a.Name===tx.account;});
+  var accOpts=ACCOUNTS.map(function(a){var seld=txAccMatch&&a.ID===txAccMatch.ID;return'<option value="'+a.ID+'"'+(seld?' selected':'')+'>'+a.Symbol+' '+a.Name+'</option>';}).join('');
+  // If the stored account no longer exists (e.g. deleted & recreated), keep its original reference visible.
+  if(!txAccMatch&&tx.account){accOpts='<option value="'+tx.account+'" selected>'+tx.account+' (original)</option>'+accOpts;}
   overlay.innerHTML='<div class="sheet"><div class="handle"></div>'
     +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">'
     +'<div class="mtitle" style="margin:0">Edit Transaction</div>'
@@ -3496,6 +3544,7 @@ function openEditTx(tx){
     +'<div class="fg" id="et-labels-group"><label class="fl">Labels</label><input class="fi" id="et-labels" value="'+((tx.labels||'').replace(/"/g,'&quot;'))+'"/></div>'
     +'<div class="fg"><label class="fl">Payee</label><input class="fi" id="et-payee" value="'+((tx.payee||'').replace(/"/g,'&quot;'))+'"/></div>'
     +'<button class="btn pri" id="et-save">Save changes</button>'
+    +'<button class="btn sec" id="et-duplicate">Duplicate entry</button>'
     +'<button class="btn sec" id="et-cancel">Cancel</button>'
     +'</div>';
   document.body.appendChild(overlay);
@@ -3587,6 +3636,7 @@ function openEditTx(tx){
     }catch(e){toast('Failed to delete','err');}
   });
   document.getElementById('et-cancel').addEventListener('click',close);
+  var etDup=document.getElementById('et-duplicate');if(etDup){etDup.addEventListener('click',function(){close();setTimeout(function(){duplicateTx(tx);},260);});}
   overlay.addEventListener('click',function(e){if(e.target===overlay)close();});
   function close(){overlay.classList.remove('on');setTimeout(function(){overlay.remove();},300);}
 }
