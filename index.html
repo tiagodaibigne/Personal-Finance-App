@@ -255,7 +255,7 @@ const ICON_KEYS=['food','coffee','bills','shop','transport','car','trolley','hou
 const SCOPES='https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/drive profile email';
 const DISCOVERY=['https://sheets.googleapis.com/$discovery/rest?version=v4','https://www.googleapis.com/discovery/v1/apis/drive/v3/rest'];
 const TX_HEADERS=['account','category','currency','amount','ref_currency_amount','type','payment_type','payment_type_local','note','date','gps_latitude','gps_longitude','gps_accuracy_in_meters','warranty_in_month','transfer','payee','labels','envelope_id','custom_category'];
-let sheetId=null,TX=[],ACCOUNTS=[],CATS={expense:[],income:[],transfer:[]},PLANNED=[],BUDGETS=[],SAVINGS_HISTORY=[],userProfile={},curPage='dashboard',txType='expense',selCat=null,trendAcc=null,hideAmounts=false,dashDonutType='expense',statDonutType='expense',recPeriod='30 days',recMonthOff=0,recCustomFrom='',recCustomTo='',statPeriod='month',statMonthOff=0,statYear=new Date().getFullYear(),statCustomS='',statCustomE=new Date().toISOString().split('T')[0],statView='summary',summaryCatOpen=false,lastSync=null;
+let sheetId=null,TX=[],ACCOUNTS=[],CATS={expense:[],income:[],transfer:[]},PLANNED=[],BUDGETS=[],SAVINGS_HISTORY=[],userProfile={},curPage='dashboard',txType='expense',selCat=null,trendAcc=null,hideAmounts=false,dashDonutType='expense',statDonutType='expense',recPeriod='30 days',recMonthOff=0,recCustomFrom='',recCustomTo='',statPeriod='month',statMonthOff=0,statYear=new Date().getFullYear(),statCustomS='',statCustomE=new Date().toISOString().split('T')[0],statView='summary',lastSync=null;
 const CAT_COLOURS=['#e05252','#e0734a','#e89c3c','#e6c34a','#9cc04a','#52b06a','#3db58a','#3ba8a8','#4672c4','#5a6ec8','#7258a8','#a05ba8','#c45a8a','#d4527a','#8a6a52','#6a7a8a','#2db56e','#d9a441'];
 let selColour=CAT_COLOURS[0];
 const toastEl=document.getElementById('toast');let toastTimer;
@@ -1233,7 +1233,7 @@ function renderDonutDrill(chart,dd){
   if(!dp)return;
   var txs=dd.txs;
   if(!txs||!txs.length){
-    // No itemised entries to show — leave the panel empty (no note).
+    // No itemised entries to show — leave the panel empty (no note, no button).
     dp.style.display='none';dp.innerHTML='';
     return;
   }
@@ -1253,12 +1253,35 @@ function renderDonutDrill(chart,dd){
       +'<div style="font-size:11.5px;color:var(--t2)">'+dateStr+(accName?' · '+accName:'')+'</div></div>'
       +'<div style="font-size:14px;font-weight:600;font-family:var(--mono);color:'+col+';flex-shrink:0">'+sign+fmt(Math.abs(amt))+'</div></div>';
   }).join('');
+  var n=sorted.length;
+  var label='Show all records ('+n+')';
+  // Step 1: show only a "Show all records" toggle button. The records sit hidden below it,
+  // revealed (with a subtle separating line) only when the button is tapped.
   dp.style.display='block';
-  dp.innerHTML='<div style="margin-top:12px;padding-top:4px">'
-    +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px">'
-    +'<span style="font-size:12px;color:var(--t2);font-weight:600;text-transform:uppercase;letter-spacing:.5px">'+dd.n+' · '+sorted.length+' '+(sorted.length===1?'entry':'entries')+'</span>'
+  dp.innerHTML='<div style="margin-top:12px">'
+    +'<button id="'+chart+'-showrecs" style="width:100%;background:var(--bg-input);border:1px solid var(--border2);color:var(--t1);border-radius:8px;padding:9px 12px;font-size:13px;font-weight:600;cursor:pointer;font-family:var(--font);display:flex;align-items:center;justify-content:center;gap:6px">'
+    +'<span id="'+chart+'-showrecs-label">'+label+'</span>'
+    +'<span id="'+chart+'-showrecs-arrow" style="font-size:11px;transition:transform .2s;display:inline-block">\u25BC</span></button>'
+    +'<div id="'+chart+'-recs" style="display:none;border-top:1px solid var(--border);margin-top:12px;padding-top:4px">'
+    +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px;padding-top:8px">'
+    +'<span style="font-size:12px;color:var(--t2);font-weight:600;text-transform:uppercase;letter-spacing:.5px">'+dd.n+' · '+n+' '+(n===1?'entry':'entries')+'</span>'
     +'<span style="font-size:13px;font-weight:700;font-family:var(--mono);color:'+dd.c+'">'+fmt(dd.v)+'</span></div>'
-    +rows+'</div>';
+    +rows+'</div></div>';
+  // Wire the show/hide toggle.
+  var btn=document.getElementById(chart+'-showrecs');
+  if(btn){
+    btn.addEventListener('click',function(e){
+      e.stopPropagation(); // don't let the document handler treat this as an outside-click
+      var recs=document.getElementById(chart+'-recs');
+      var arrow=document.getElementById(chart+'-showrecs-arrow');
+      var lbl=document.getElementById(chart+'-showrecs-label');
+      if(!recs)return;
+      var open=recs.style.display!=='none';
+      recs.style.display=open?'none':'block';
+      if(arrow)arrow.style.transform=open?'rotate(0deg)':'rotate(180deg)';
+      if(lbl)lbl.textContent=open?('Show all records ('+n+')'):('Hide records ('+n+')');
+    });
+  }
 }
 
 function setupDonutInteraction(){
@@ -2474,14 +2497,13 @@ function renderStatistics(el){
         +'</div>'
         +(stats.income>0||stats.expenses>0?'<div class="sh" style="margin-top:6px"><span class="st">Income vs Expenses</span></div>'
           +'<div class="card" style="padding:14px;text-align:center">'+incomeExpDonut+'</div>':'')
-        +(bdItems.length>0?'<div class="sh" id="sum-cat-toggle" style="cursor:pointer;user-select:none"><span class="st">Spending by category</span>'
-          +'<span id="sum-cat-arrow" style="font-size:13px;color:var(--t2);transition:transform .2s;transform:rotate('+(summaryCatOpen?'180':'0')+'deg);display:inline-block">\u25BC</span></div>'
-          +'<div id="sum-cat-body" style="display:'+(summaryCatOpen?'block':'none')+'"><div class="card" style="padding:14px;text-align:center">'+catDonut
+        +(bdItems.length>0?'<div class="sh"><span class="st">Spending by category</span></div>'
+          +'<div class="card" style="padding:14px;text-align:center">'+catDonut
           +bdItems.map(function(item){var cat=getCat(item.id);return'<div style="display:flex;align-items:center;gap:9px;padding:7px 0;border-bottom:1px solid var(--border2)">'
             +'<div style="width:7px;height:7px;border-radius:50%;background:'+cat.Colour+';flex-shrink:0"></div>'
             +'<div style="flex:1;font-size:14.2px;font-weight:500;text-align:left">'+cat.Name+'</div>'
             +'<div style="font-size:14.2px;font-weight:700;font-family:var(--mono);color:var(--red)">-'+fmt(item.amt)+'</div>'
-            +'</div>';}).join('')+'</div></div>':'')
+            +'</div>';}).join('')+'</div>':'')
         +(stats.filtered.length===0?'<div class="empty"><p>No data for '+label.toLowerCase()+'</p></div>':'');
 
     } else if(statView==='income'){
@@ -2645,13 +2667,6 @@ function renderStatistics(el){
   }
 
   el.querySelectorAll('.pt2[data-per]').forEach(function(b){b.addEventListener('click',function(){statPeriod=b.dataset.per;renderStatistics(el);});});
-  // Collapsible "Spending by category" — toggle open/closed with a drop arrow.
-  (function(){var t=document.getElementById('sum-cat-toggle');if(t){t.addEventListener('click',function(){
-    summaryCatOpen=!summaryCatOpen;
-    var body=document.getElementById('sum-cat-body');var arrow=document.getElementById('sum-cat-arrow');
-    if(body)body.style.display=summaryCatOpen?'block':'none';
-    if(arrow)arrow.style.transform='rotate('+(summaryCatOpen?'180':'0')+'deg)';
-  });}})();
   (function(){var lb=document.getElementById('stat-filter-label');if(lb){var n=txFilterActiveCount();lb.textContent=n>0?('Filter ('+n+')'):'Filter';}
     document.getElementById('stat-filter-btn')?.addEventListener('click',function(){openTxFilterSheet(function(){renderStatistics(el);});});})();
   document.getElementById('sp')&&document.getElementById('sp').addEventListener('click',function(){statMonthOff--;renderStatistics(el);});
