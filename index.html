@@ -860,7 +860,7 @@ async function onSignedIn(){try{const t=gapi.client.getToken()?.access_token;if(
     if(shownFromCache){if(typeof toast==='function')toast('Showing saved data — couldn\'t reach Google','');}
     else{document.getElementById('p-dashboard').innerHTML='<div class="empty"><p>Failed to connect to Google Sheets.<br>Check your internet connection and that you added the authorised domain in Google Cloud Console.</p><button class="btn pri" style="margin-top:12px" onclick="location.reload()">Retry</button></div>';}
   }}
-function setupNav(){document.querySelectorAll('.ni').forEach(btn=>{btn.addEventListener('click',()=>{document.querySelectorAll('.ni').forEach(b=>b.classList.remove('on'));btn.classList.add('on');curPage=btn.dataset.p;document.querySelectorAll('.page').forEach(p=>p.classList.remove('on'));document.getElementById('p-'+curPage).classList.add('on');document.getElementById('scroll').scrollTop=0;render(curPage);document.getElementById('fab').style.display=curPage==='more'?'none':'flex';});});
+function setupNav(){if(window._wired_setupNav)return;window._wired_setupNav=true;document.querySelectorAll('.ni').forEach(btn=>{btn.addEventListener('click',()=>{document.querySelectorAll('.ni').forEach(b=>b.classList.remove('on'));btn.classList.add('on');curPage=btn.dataset.p;document.querySelectorAll('.page').forEach(p=>p.classList.remove('on'));document.getElementById('p-'+curPage).classList.add('on');document.getElementById('scroll').scrollTop=0;render(curPage);document.getElementById('fab').style.display=curPage==='more'?'none':'flex';});});
 document.getElementById('scroll').addEventListener('click',function(e){var row=e.target.closest('[data-txidx]');if(row){var i=parseInt(row.dataset.txidx);if(!isNaN(i)&&TX[i])openEditTx(TX[i]);}});}
 function goToPage(p){
   document.querySelectorAll('.page').forEach(function(pg){pg.classList.remove('on');});
@@ -871,7 +871,7 @@ function goToPage(p){
 }
 
 function render(p){const el=document.getElementById('p-'+p);if(!el)return;el.innerHTML='';({dashboard:renderDashboard,records:renderRecords,statistics:renderStatistics,planning:renderPlanning,more:renderMore}[p]||renderDashboard)(el);}
-function setupFab(){document.getElementById('fab').addEventListener('click',()=>{selCat=null;txType='expense';document.getElementById('m-amt').value='';document.getElementById('m-note').value='';document.getElementById('m-labels').value='';document.getElementById('m-payee').value='';var lastPT='Cash';try{lastPT=localStorage.getItem('financeLastPayType')||'Cash';}catch(e){}if(document.getElementById('m-paytype'))document.getElementById('m-paytype').value=lastPT;document.getElementById('m-date').value=new Date().toLocaleDateString('en-CA');
+function setupFab(){if(window._wired_setupFab)return;window._wired_setupFab=true;document.getElementById('fab').addEventListener('click',()=>{selCat=null;txType='expense';document.getElementById('m-amt').value='';document.getElementById('m-note').value='';document.getElementById('m-labels').value='';document.getElementById('m-payee').value='';var lastPT='Cash';try{lastPT=localStorage.getItem('financeLastPayType')||'Cash';}catch(e){}if(document.getElementById('m-paytype'))document.getElementById('m-paytype').value=lastPT;document.getElementById('m-date').value=new Date().toLocaleDateString('en-CA');
     var nowTime=new Date();
     var hh=String(nowTime.getHours()).padStart(2,'0');
     var mm=String(nowTime.getMinutes()).padStart(2,'0');
@@ -990,7 +990,7 @@ function setupLabelAutocomplete(){
   input.addEventListener('blur',function(){setTimeout(function(){suggBox.innerHTML='';},200);});
 }
 
-function setupModals(){document.getElementById('m-cancel').addEventListener('click',()=>closeModal('modal-tx'));document.getElementById('modal-tx').addEventListener('click',e=>{if(e.target.id==='modal-tx')closeModal('modal-tx');});document.querySelectorAll('#type-toggle .tb').forEach(b=>b.addEventListener('click',()=>setTxType(b.dataset.t)));document.getElementById('m-save').addEventListener('click',async()=>{
+function setupModals(){if(window._wired_setupModals)return;window._wired_setupModals=true;document.getElementById('m-cancel').addEventListener('click',()=>closeModal('modal-tx'));document.getElementById('modal-tx').addEventListener('click',e=>{if(e.target.id==='modal-tx')closeModal('modal-tx');});document.querySelectorAll('#type-toggle .tb').forEach(b=>b.addEventListener('click',()=>setTxType(b.dataset.t)));document.getElementById('m-save').addEventListener('click',async()=>{
   const amt=parseFloat(document.getElementById('m-amt').value);
   const cur=document.getElementById('m-cur').value;
   const acc=document.getElementById('m-acc').value;
