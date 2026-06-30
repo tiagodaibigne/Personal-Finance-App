@@ -138,7 +138,7 @@ select.fi{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.o
 .pt2.on{background:var(--blue);color:#fff}
 .parr{width:28px;height:28px;background:var(--bg-card);border:1px solid var(--border2);border-radius:7px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--t2)}
 .parr:disabled{opacity:.2;cursor:not-allowed}
-.donut-wrap{position:relative;width:150px;height:150px;margin:0 auto 10px}
+.donut-wrap{position:relative;width:150px;height:150px;margin:0 auto 10px}.donut-outer{width:100%}.donut-drill{width:100%;max-width:420px;margin:0 auto;text-align:left}
 .donut-center{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;pointer-events:none;width:92px;text-align:center}
 .donut-val{font-size:14px;font-weight:800;font-family:var(--mono);letter-spacing:-.04em;line-height:1.1;white-space:nowrap}
 .donut-sub{font-size:8.5px;color:var(--t2);font-weight:500;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:88px}
@@ -1216,12 +1216,48 @@ function iDonut(slices,centreVal,centreSub,id){
     return p;
   }).join('');
   // Store slice data for the click handler
-  if(typeof window!=='undefined'){window.__donutData=window.__donutData||{};window.__donutData[id]=slices.map(function(s){return{n:s.n,v:s.v,c:s.c,pct:(s.v/total*100)};});window.__donutTotal=window.__donutTotal||{};window.__donutTotal[id]={val:centreVal,sub:centreSub};}
-  return '<div class="donut-wrap"><svg viewBox="0 0 150 150" width="150" height="150" style="transform:rotate(-90deg)"><circle cx="'+cx+'" cy="'+cy+'" r="'+R+'" fill="none" stroke="var(--bg-input)" stroke-width="'+sw+'"/>'+paths+'</svg>'
-    +'<div class="donut-center" id="'+id+'-center"><div class="donut-val">'+centreVal+'</div><div class="donut-sub">'+centreSub+'</div></div></div>';
+  if(typeof window!=='undefined'){window.__donutData=window.__donutData||{};window.__donutData[id]=slices.map(function(s){return{n:s.n,v:s.v,c:s.c,pct:(s.v/total*100),txs:s.txs||null};});window.__donutTotal=window.__donutTotal||{};window.__donutTotal[id]={val:centreVal,sub:centreSub};}
+  return '<div class="donut-outer"><div class="donut-wrap"><svg viewBox="0 0 150 150" width="150" height="150" style="transform:rotate(-90deg)"><circle cx="'+cx+'" cy="'+cy+'" r="'+R+'" fill="none" stroke="var(--bg-input)" stroke-width="'+sw+'"/>'+paths+'</svg>'
+    +'<div class="donut-center" id="'+id+'-center"><div class="donut-val">'+centreVal+'</div><div class="donut-sub">'+centreSub+'</div></div></div>'
+    +'<div class="donut-drill" id="'+id+'-drill" style="display:none"></div></div>';
 }
 
 // Global delegated handler for interactive donut slices
+// Render the transactions behind a selected donut slice, in the panel below that donut.
+function renderDonutDrill(chart,dd){
+  var dp=document.getElementById(chart+'-drill');
+  if(!dp)return;
+  var txs=dd.txs;
+  if(!txs||!txs.length){
+    // No per-slice transactions available for this donut (e.g. the income-vs-expense summary donut).
+    dp.style.display='block';
+    dp.innerHTML='<div style="font-size:12.5px;color:var(--t2);text-align:center;padding:10px 0">No itemised entries for this selection.</div>';
+    return;
+  }
+  // Sort newest first.
+  var sorted=txs.slice().sort(function(a,b){return new Date(b.date)-new Date(a.date);});
+  var rows=sorted.map(function(t){
+    var amt=parseFloat(t.ref_currency_amount||t.amount)||0;
+    var isExp=(t.type||'').toLowerCase()==='expense';
+    var sign=isExp?'-':'+';
+    var col=isExp?'var(--red)':'var(--green)';
+    var acc=ACCOUNTS.find(function(a){return a.ID===t.account;});
+    var accName=acc?acc.Name:'';
+    var note=t.note||t.payee||'';
+    var dateStr=(t.date||'').substring(0,10);
+    return '<div style="display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-top:1px solid var(--border2)">'
+      +'<div style="min-width:0;flex:1;padding-right:10px"><div style="font-size:13.5px;font-weight:600;color:var(--t1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+(note||dd.n)+'</div>'
+      +'<div style="font-size:11.5px;color:var(--t2)">'+dateStr+(accName?' · '+accName:'')+'</div></div>'
+      +'<div style="font-size:14px;font-weight:600;font-family:var(--mono);color:'+col+';flex-shrink:0">'+sign+fmt(Math.abs(amt))+'</div></div>';
+  }).join('');
+  dp.style.display='block';
+  dp.innerHTML='<div style="margin-top:12px;padding-top:4px">'
+    +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px">'
+    +'<span style="font-size:12px;color:var(--t2);font-weight:600;text-transform:uppercase;letter-spacing:.5px">'+dd.n+' · '+sorted.length+' '+(sorted.length===1?'entry':'entries')+'</span>'
+    +'<span style="font-size:13px;font-weight:700;font-family:var(--mono);color:'+dd.c+'">'+fmt(dd.v)+'</span></div>'
+    +rows+'</div>';
+}
+
 function setupDonutInteraction(){
   document.addEventListener('click',function(e){
     var seg=e.target.closest&&e.target.closest('.idonut-seg');
@@ -1236,6 +1272,7 @@ function setupDonutInteraction(){
           document.querySelectorAll('.idonut-seg[data-chart="'+chart+'"]').forEach(function(s){
             s.setAttribute('data-selected','0');s.style.strokeWidth='22';s.style.opacity='1';
           });
+          var dp=document.getElementById(chart+'-drill');if(dp){dp.style.display='none';dp.innerHTML='';}
         });
       }
       return;
@@ -1251,6 +1288,7 @@ function setupDonutInteraction(){
     if(sel){
       var t=window.__donutTotal[chart];
       centre.innerHTML='<div class="donut-val">'+t.val+'</div><div class="donut-sub">'+t.sub+'</div>';
+      var dp0=document.getElementById(chart+'-drill');if(dp0){dp0.style.display='none';dp0.innerHTML='';}
     } else {
       seg.setAttribute('data-selected','1');seg.style.strokeWidth='26';
       document.querySelectorAll('.idonut-seg[data-chart="'+chart+'"]').forEach(function(s){
@@ -1258,6 +1296,7 @@ function setupDonutInteraction(){
       });
       var dd=data[idx];
       centre.innerHTML='<div class="donut-val">'+fmt(dd.v)+'</div><div class="donut-sub" style="color:'+dd.c+'">'+dd.n+' · '+dd.pct.toFixed(0)+'%</div>';
+      renderDonutDrill(chart,dd);
     }
   });
 }
@@ -1910,7 +1949,7 @@ function renderDashboard(el){const now=new Date();const s=new Date(now.getFullYe
     +'<div style="font-size:10.6px;font-weight:600;color:var(--t2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px">Net today</div>'
     +'<div style="font-size:16.5px;font-weight:800;font-family:var(--mono);color:'+(todayNet>=0?'var(--green)':'var(--red)')+'">'+(todayNet>=0?'+':'')+fmt(todayNet)+'</div></div>'
     +'</div>';
-})()}<div class="sh"><span class="st">Recent</span><button class="sl" id="rec-expand">Show more</button></div><div class="card" style="padding:0 13px" id="rec-card">${TX.length===0?'<div class="empty"><p>No transactions yet.<br>Tap + to add your first one.</p></div>':TX.slice(0,3).map((t,i)=>txRow(t,i)).join('')}</div>${renderInsights()}${topExp.length>0?`<div class="sh" style="margin-top:4px"><span class="st">${dashDonutType==='expense'?'Spending':'Income'} this month</span><div style="display:flex;gap:4px"><button class="dtoggle${dashDonutType==='expense'?' on':''}" data-dashdonut="expense" style="font-size:11.8px;padding:3px 9px;border-radius:6px;border:1px solid var(--border2);background:${dashDonutType==='expense'?'var(--red-s)':'transparent'};color:${dashDonutType==='expense'?'var(--red)':'var(--t2)'};cursor:pointer;font-family:var(--font);font-weight:600">Expenses</button><button class="dtoggle${dashDonutType==='income'?' on':''}" data-dashdonut="income" style="font-size:11.8px;padding:3px 9px;border-radius:6px;border:1px solid var(--border2);background:${dashDonutType==='income'?'var(--green-s)':'transparent'};color:${dashDonutType==='income'?'var(--green)':'var(--t2)'};cursor:pointer;font-family:var(--font);font-weight:600">Income</button></div></div><div class="card" style="padding:14px"><div style="display:flex;flex-direction:column;align-items:stretch;gap:14px"><div style="flex-shrink:0;display:flex;justify-content:center">${(function(){var isExp=dashDonutType==='expense';var src=isExp?topExp:topInc;var tot=isExp?expTotal:incTotal;return iDonut(src.map(([id,v])=>{const cat=getCat(id);return{c:cat.Colour,v:v,n:cat.Name};}),fmt(tot),isExp?'expenses':'income','dash-donut');})()}</div><div style="flex:1;min-width:0">${(dashDonutType==='expense'?topExp:topInc).map(([id,v])=>{const c=getCat(id);const tot=dashDonutType==='expense'?expTotal:incTotal;const pct=tot>0?(v/tot*100).toFixed(0):0;return`<div style="display:flex;align-items:center;gap:9px;padding:6px 0;border-bottom:1px solid var(--border2)"><div style="width:6px;height:6px;border-radius:50%;background:${c.Colour};flex-shrink:0"></div><div style="flex:1;min-width:0"><div style="font-size:13.5px;font-weight:500;margin-bottom:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${c.Name}</div><div style="height:10px;background:var(--bg-input);border-radius:3px;overflow:hidden"><div style="height:100%;width:${pct}%;background:${c.Colour};border-radius:3px 0 0 3px"></div></div></div><div style="font-size:15px;font-weight:700;font-family:var(--mono);flex-shrink:0;white-space:nowrap;color:${dashDonutType==='expense'?'var(--red)':'var(--green)'}">${dashDonutType==='expense'?'-':'+'}${fmt(v)}</div></div>`;}).join('')}</div></div></div>`:''}${upPlan.length>0?`<div class="sh" style="margin-top:4px"><span class="st">Upcoming payments</span><button class="sl" onclick="document.querySelector('[data-p=planning]').click()">See all</button></div><div class="card" style="padding:4px 13px">${upPlan.map(p=>{const isInc=[].concat(CATS.income).find(function(cat){return cat.ID===p.Category||cat.Name===p.Category;});const amtCol=isInc?'var(--green)':'var(--red)';const sign=isInc?'+':'-';const iconCol=isInc?'#2db56e':'#e05252';const iconBg=isInc?'rgba(45,181,110,.1)':'rgba(224,82,82,.1)';const u=p.days<0?'var(--red)':p.days<=3?'var(--amber)':'var(--t2)';return`<div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--border2)"><div style="width:30px;height:30px;border-radius:8px;background:${iconBg};display:flex;align-items:center;justify-content:center"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="${iconCol}" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12,6 12,12 16,14"/></svg></div><div style="flex:1"><div style="font-size:14.2px;font-weight:500">${p.Name}</div><div style="font-size:11.8px;color:${u};margin-top:1px">${daysLabel(p.NextDate)}</div></div><div style="font-size:16.5px;font-weight:700;font-family:var(--mono);color:${amtCol}">${sign}${fmt(p.Amount,p.Currency)}</div></div>`;}).join('')}</div>`:''}${(function(){
+})()}<div class="sh"><span class="st">Recent</span><button class="sl" id="rec-expand">Show more</button></div><div class="card" style="padding:0 13px" id="rec-card">${TX.length===0?'<div class="empty"><p>No transactions yet.<br>Tap + to add your first one.</p></div>':TX.slice(0,3).map((t,i)=>txRow(t,i)).join('')}</div>${renderInsights()}${topExp.length>0?`<div class="sh" style="margin-top:4px"><span class="st">${dashDonutType==='expense'?'Spending':'Income'} this month</span><div style="display:flex;gap:4px"><button class="dtoggle${dashDonutType==='expense'?' on':''}" data-dashdonut="expense" style="font-size:11.8px;padding:3px 9px;border-radius:6px;border:1px solid var(--border2);background:${dashDonutType==='expense'?'var(--red-s)':'transparent'};color:${dashDonutType==='expense'?'var(--red)':'var(--t2)'};cursor:pointer;font-family:var(--font);font-weight:600">Expenses</button><button class="dtoggle${dashDonutType==='income'?' on':''}" data-dashdonut="income" style="font-size:11.8px;padding:3px 9px;border-radius:6px;border:1px solid var(--border2);background:${dashDonutType==='income'?'var(--green-s)':'transparent'};color:${dashDonutType==='income'?'var(--green)':'var(--t2)'};cursor:pointer;font-family:var(--font);font-weight:600">Income</button></div></div><div class="card" style="padding:14px"><div style="display:flex;flex-direction:column;align-items:stretch;gap:14px"><div style="flex-shrink:0;display:flex;justify-content:center">${(function(){var isExp=dashDonutType==='expense';var src=isExp?topExp:topInc;var tot=isExp?expTotal:incTotal;var _dtype=isExp?'expense':'income';return iDonut(src.map(([id,v])=>{const cat=getCat(id);return{c:cat.Colour,v:v,n:cat.Name,txs:stats.filtered.filter(function(t){return t.category===id&&(t.type||'').toLowerCase()===_dtype;})};}),fmt(tot),isExp?'expenses':'income','dash-donut');})()}</div><div style="flex:1;min-width:0">${(dashDonutType==='expense'?topExp:topInc).map(([id,v])=>{const c=getCat(id);const tot=dashDonutType==='expense'?expTotal:incTotal;const pct=tot>0?(v/tot*100).toFixed(0):0;return`<div style="display:flex;align-items:center;gap:9px;padding:6px 0;border-bottom:1px solid var(--border2)"><div style="width:6px;height:6px;border-radius:50%;background:${c.Colour};flex-shrink:0"></div><div style="flex:1;min-width:0"><div style="font-size:13.5px;font-weight:500;margin-bottom:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${c.Name}</div><div style="height:10px;background:var(--bg-input);border-radius:3px;overflow:hidden"><div style="height:100%;width:${pct}%;background:${c.Colour};border-radius:3px 0 0 3px"></div></div></div><div style="font-size:15px;font-weight:700;font-family:var(--mono);flex-shrink:0;white-space:nowrap;color:${dashDonutType==='expense'?'var(--red)':'var(--green)'}">${dashDonutType==='expense'?'-':'+'}${fmt(v)}</div></div>`;}).join('')}</div></div></div>`:''}${upPlan.length>0?`<div class="sh" style="margin-top:4px"><span class="st">Upcoming payments</span><button class="sl" onclick="document.querySelector('[data-p=planning]').click()">See all</button></div><div class="card" style="padding:4px 13px">${upPlan.map(p=>{const isInc=[].concat(CATS.income).find(function(cat){return cat.ID===p.Category||cat.Name===p.Category;});const amtCol=isInc?'var(--green)':'var(--red)';const sign=isInc?'+':'-';const iconCol=isInc?'#2db56e':'#e05252';const iconBg=isInc?'rgba(45,181,110,.1)':'rgba(224,82,82,.1)';const u=p.days<0?'var(--red)':p.days<=3?'var(--amber)':'var(--t2)';return`<div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--border2)"><div style="width:30px;height:30px;border-radius:8px;background:${iconBg};display:flex;align-items:center;justify-content:center"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="${iconCol}" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12,6 12,12 16,14"/></svg></div><div style="flex:1"><div style="font-size:14.2px;font-weight:500">${p.Name}</div><div style="font-size:11.8px;color:${u};margin-top:1px">${daysLabel(p.NextDate)}</div></div><div style="font-size:16.5px;font-weight:700;font-family:var(--mono);color:${amtCol}">${sign}${fmt(p.Amount,p.Currency)}</div></div>`;}).join('')}</div>`:''}${(function(){
   var now=new Date();
   var mStart=new Date(now.getFullYear(),now.getMonth(),1);
   var selAcc=trendAcc;
@@ -2417,7 +2456,7 @@ function renderStatistics(el){
     sc.innerHTML='';
     if(statView==='summary'){
       var incomeExpDonut=iDonut([{c:'var(--green)',v:stats.income,n:'Income'},{c:'var(--red)',v:stats.expenses,n:'Expenses'}],fmt(stats.net),stats.net>=0?'surplus':'deficit','stat-incexp');
-      var catDonut=bdItems.length>0?iDonut(bdItems.slice(0,6).map(function(b){var cat=getCat(b.id);return{c:cat.Colour,v:b.amt,n:cat.Name};}),fmt(expTotal),'spend','stat-summary-cat'):'';
+      var catDonut=bdItems.length>0?iDonut(bdItems.slice(0,6).map(function(b){var cat=getCat(b.id);return{c:cat.Colour,v:b.amt,n:cat.Name,txs:stats.filtered.filter(function(t){return t.category===b.id&&(t.type||'').toLowerCase()==='expense';})};}),fmt(expTotal),'spend','stat-summary-cat'):'';
       sc.innerHTML='<div class="sc2">'
         +'<div class="sc"><div class="sc-l">Income</div><div class="sc-v pos">+'+fmt(stats.income)+'</div></div>'
         +'<div class="sc"><div class="sc-l">Expenses</div><div class="sc-v red">-'+fmt(stats.expenses)+'</div></div>'
@@ -2446,7 +2485,7 @@ function renderStatistics(el){
       var byCatInc={};
       incTxs.forEach(function(t){byCatInc[t.category]=(byCatInc[t.category]||0)+Math.abs(parseFloat(t.ref_currency_amount||t.amount)||0);});
       var incItems=Object.entries(byCatInc).map(function(e){return{id:e[0],amt:e[1]};}).sort(function(a,b){return b.amt-a.amt;});
-      var incDonut=incItems.length>0?iDonut(incItems.slice(0,6).map(function(b){var cat=getCat(b.id);return{c:cat.Colour,v:b.amt,n:cat.Name};}),fmt(stats.income),'income','stat-inc-cat'):'';
+      var incDonut=incItems.length>0?iDonut(incItems.slice(0,6).map(function(b){var cat=getCat(b.id);return{c:cat.Colour,v:b.amt,n:cat.Name,txs:stats.filtered.filter(function(t){return t.category===b.id&&(t.type||'').toLowerCase()==='income';})};}),fmt(stats.income),'income','stat-inc-cat'):'';
       sc.innerHTML='<div class="sc2">'
         +'<div class="sc"><div class="sc-l">Total income</div><div class="sc-v pos">+'+fmt(stats.income)+'</div></div>'
         +'<div class="sc"><div class="sc-l">Transactions</div><div class="sc-v">'+incTxs.length+'</div></div>'
@@ -2462,7 +2501,7 @@ function renderStatistics(el){
               +'</div>';}).join('')+'</div>':'<div class="empty"><p>No income for '+label+'</p></div>');
 
     } else if(statView==='expenses'){
-      var expDonut2=bdItems.length>0?iDonut(bdItems.slice(0,6).map(function(b){var cat=getCat(b.id);return{c:cat.Colour,v:b.amt,n:cat.Name};}),fmt(expTotal),'spend','stat-exp-cat'):'';
+      var expDonut2=bdItems.length>0?iDonut(bdItems.slice(0,6).map(function(b){var cat=getCat(b.id);return{c:cat.Colour,v:b.amt,n:cat.Name,txs:stats.filtered.filter(function(t){return t.category===b.id&&(t.type||'').toLowerCase()==='expense';})};}),fmt(expTotal),'spend','stat-exp-cat'):'';
       sc.innerHTML='<div class="sc2">'
         +'<div class="sc"><div class="sc-l">Total expenses</div><div class="sc-v red">-'+fmt(stats.expenses)+'</div></div>'
         +'<div class="sc"><div class="sc-l">Transactions</div><div class="sc-v">'+stats.filtered.filter(function(t){var ty=(t.type||'').toLowerCase();return ty==='expense'||ty==='expenses';}).length+'</div></div>'
