@@ -397,7 +397,10 @@ function getAccBal(accId){
 function getAccBalGBP(accId){
   var acc=ACCOUNTS.find(function(a){return a.ID===accId;});
   if(acc&&acc.AccType==='savings'){return toGBP(parseFloat(acc.ManualValue||0)||0,acc.Currency||'GBP');}
-  var init=parseFloat((acc&&acc.InitialBalance)||0);
+  // Convert the initial balance from the account's native currency to GBP.
+  // (Previously this was added unconverted, inflating the GBP total for non-GBP accounts.)
+  var initNative=parseFloat((acc&&acc.InitialBalance)||0);
+  var initGBP=toGBP(initNative,(acc&&acc.Currency)||'GBP');
   var total=TX.filter(function(tx){return tx.account===accId;})
     .reduce(function(sum,tx){
       // Use ref_currency_amount (GBP equivalent), already signed
@@ -405,7 +408,7 @@ function getAccBalGBP(accId){
       if(isNaN(ref)) ref=parseFloat(tx.amount)||0;
       return sum+ref;
     },0);
-  return init+total;
+  return initGBP+total;
 }
 // Live FX rates — updated daily from ECB via Frankfurter API
 const fxR={GBP:1,EUR:0.855,USD:0.787}; // fallback only
@@ -2599,7 +2602,7 @@ function renderStatistics(el){
         chip.addEventListener('click',function(){trendAcc=chip.dataset.strendacc||null;rSC();});
       });
     } else if(statView==='balance'){
-      var balRows=ACCOUNTS.map(function(a){
+      var balRows=ACCOUNTS.filter(function(a){return a.AccType!=='savings';}).map(function(a){
         var bal=getAccBal(a.ID);          // native currency
         var gbpBal=getAccBalGBP(a.ID);    // GBP equivalent from ref_currency_amount
         return{name:a.Name,symbol:a.Symbol,currency:a.Currency,bal:bal,gbpBal:gbpBal};
