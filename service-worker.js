@@ -5,7 +5,7 @@
 // and cache-first for fonts (which rarely change).
 
 // Bump this version string on each deploy to retire old caches cleanly.
-var CACHE = 'pba-cache-v88';
+var CACHE = 'pba-cache-v89';
 
 // The core file(s) that make up the app shell.
 var APP_SHELL = [
