@@ -473,7 +473,7 @@ function toGBP(amount,currency){
   return parseFloat(((parseFloat(amount)||0)*rate).toFixed(2));
 }
 let tokenClient;
-async function initGoogle(){await new Promise(r=>gapi.load('client',r));await gapi.client.init({discoveryDocs:DISCOVERY});tokenClient=google.accounts.oauth2.initTokenClient({client_id:CLIENT_ID,scope:SCOPES,callback:async resp=>{if(resp.error){showAuth();return;}localStorage.setItem('finance_token_exp',Date.now()+resp.expires_in*1000);try{localStorage.setItem('finance_has_signed_in','1');}catch(e){}await onSignedIn();}});}
+async function initGoogle(){await new Promise(r=>gapi.load('client',r));await gapi.client.init({discoveryDocs:DISCOVERY});tokenClient=google.accounts.oauth2.initTokenClient({client_id:CLIENT_ID,scope:SCOPES,callback:async resp=>{if(resp.error){hideSplash();showAuth();if(typeof toast==='function')toast('Sign-in failed — check the app\'s Google set-up','err');return;}localStorage.setItem('finance_token_exp',Date.now()+resp.expires_in*1000);try{localStorage.setItem('finance_has_signed_in','1');}catch(e){}await onSignedIn();}});}
 function isTokenValid(){const e=localStorage.getItem('finance_token_exp');return e&&Date.now()<parseInt(e)-60000;}
 function signIn(){tokenClient.requestAccessToken({prompt:''});}
 function signOut(){const t=gapi.client.getToken();if(t)google.accounts.oauth2.revoke(t.access_token);gapi.client.setToken(null);localStorage.removeItem('finance_token_exp');localStorage.removeItem('finance_sheet_id');location.reload();}
@@ -820,18 +820,12 @@ async function boot(){try{applyTheme(getTheme());hideAmounts=localStorage.getIte
   if(!isOnline()&&isTokenValid()){openOffline();return;}
   await initGoogle();
   if(isTokenValid()&&gapi.client.getToken()){await onSignedIn();}
-  else if(isOnline()&&localStorage.getItem('finance_has_signed_in')==='1'){
-    // Token expired (Google tokens last ~1 hour) but the user has signed in before and
-    // Google still holds their grant. Silently request a fresh token — this passes through
-    // without the approval screen, so we skip showing the "Continue with Google" button.
-    try{
-      showSilentSignin();
-      tokenClient.requestAccessToken({prompt:''});
-      // If the silent attempt doesn't complete in a few seconds, fall back to the button.
-      setTimeout(function(){if(!isTokenValid()){hideSplash();showAuth();}},6000);
-    }catch(e){hideSplash();showAuth();}
+  else{
+    // No valid token. Show the sign-in screen. (A previous version tried to silently refresh
+    // here, but if the OAuth client is misconfigured that hangs on the splash — so we now show
+    // the button straightaway, which is reliable.)
+    hideSplash();showAuth();
   }
-  else{hideSplash();showAuth();}
   }catch(e){
     console.error(e);
     // Network/Google init failed. If we have a cached session+data, show offline view.
