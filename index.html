@@ -255,6 +255,25 @@ const ICON_KEYS=['food','coffee','bills','shop','transport','car','trolley','hou
 const SCOPES='https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/drive profile email';
 const DISCOVERY=['https://sheets.googleapis.com/$discovery/rest?version=v4','https://www.googleapis.com/discovery/v1/apis/drive/v3/rest'];
 const TX_HEADERS=['account','category','currency','amount','ref_currency_amount','type','payment_type','payment_type_local','note','date','gps_latitude','gps_longitude','gps_accuracy_in_meters','warranty_in_month','transfer','payee','labels','envelope_id','custom_category'];
+// ============ APP VERSION & CHANGELOG ============
+// Production-era versioning: MAJOR.MINOR (e.g. v4.0). Bump MINOR each release;
+// bump MAJOR for a significant milestone. Update APP_WHATS_NEW with each release.
+var APP_VERSION='4.0';
+var APP_WHATS_NEW={
+  version:'4.0',
+  date:'July 2026',
+  items:[
+    'New version scheme (v4.0) marking the production release',
+    'Full user guide added under More → About (PDF)',
+    'Reliable sign-in screen (no more hanging on the splash)',
+    'Fixed “Add planned payment” so new planned payments can be created',
+    'Log-now advances a planned payment to its next date, even when logged early',
+    'Tappable notifications open the planned payments view',
+    'Currency follows the selected account; last account & payment method remembered',
+    'Clearer cash vs net-worth figures, with savings kept separate',
+    'Tap any chart slice, then “Show all records” to see the entries behind it'
+  ]
+};
 let sheetId=null,TX=[],ACCOUNTS=[],CATS={expense:[],income:[],transfer:[]},PLANNED=[],BUDGETS=[],SAVINGS_HISTORY=[],userProfile={},curPage='dashboard',txType='expense',selCat=null,trendAcc=null,hideAmounts=false,dashDonutType='expense',statDonutType='expense',recPeriod='30 days',recMonthOff=0,recCustomFrom='',recCustomTo='',statPeriod='month',statMonthOff=0,statYear=new Date().getFullYear(),statCustomS='',statCustomE=new Date().toISOString().split('T')[0],statView='summary',lastSync=null;
 const CAT_COLOURS=['#e05252','#e0734a','#e89c3c','#e6c34a','#9cc04a','#52b06a','#3db58a','#3ba8a8','#4672c4','#5a6ec8','#7258a8','#a05ba8','#c45a8a','#d4527a','#8a6a52','#6a7a8a','#2db56e','#d9a441'];
 let selColour=CAT_COLOURS[0];
@@ -2982,6 +3001,89 @@ function openEditPlanned(plan,onDone){
   overlay.addEventListener('click',function(e){if(e.target===overlay)close();});
   function close(){overlay.classList.remove('on');setTimeout(function(){overlay.remove();},300);}
 }
+function downloadUserGuide(){
+  var v=APP_VERSION;
+  var css='body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;color:#1a1a1a;line-height:1.55;max-width:720px;margin:0 auto;padding:32px 28px}'
+    +'h1{font-size:26px;margin:0 0 4px}h2{font-size:18px;margin:26px 0 8px;padding-bottom:5px;border-bottom:2px solid #4672c4;color:#2a2a2a}h3{font-size:14.5px;margin:16px 0 4px;color:#333}'
+    +'p,li{font-size:12.7px;color:#333}ul{margin:6px 0 6px 0;padding-left:20px}li{margin:3px 0}'
+    +'.sub{color:#777;font-size:12px;margin-bottom:18px}.tag{display:inline-block;background:#eef2fb;color:#4672c4;font-size:10.5px;font-weight:600;padding:2px 8px;border-radius:5px;margin-bottom:4px}'
+    +'.note{background:#f6f8fc;border-left:3px solid #4672c4;padding:9px 12px;font-size:12px;margin:10px 0;border-radius:0 6px 6px 0}'
+    +'.foot{margin-top:30px;padding-top:12px;border-top:1px solid #ddd;color:#999;font-size:11px;text-align:center}@media print{h2{page-break-after:avoid}h3{page-break-after:avoid}}';
+  var h='<!DOCTYPE html><html><head><meta charset="utf-8"><title>Personal Budgeting App — User Guide v'+v+'</title><style>'+css+'</style></head><body>';
+  h+='<h1>Personal Budgeting App</h1><div class="sub">User Guide · Version '+v+'</div>';
+
+  h+='<p>This app helps you track your money across multiple accounts and currencies, all stored privately in your own Google Sheet. Nothing is sent to any server — your data stays in your Google Drive. Here is how everything works.</p>';
+
+  h+='<h2>1. Getting started</h2>';
+  h+='<p>When you first open the app you sign in with your Google account. This lets the app create and use a single spreadsheet in your Drive, which is where all your data lives. You can open that sheet directly any time to see the raw data.</p>';
+  h+='<div class="note">Your data belongs to you. If you ever stop using the app, your complete history remains in your Google Sheet.</div>';
+
+  h+='<h2>2. The Dashboard</h2>';
+  h+='<p>The Dashboard is your home screen. It shows your account cards (each with its current balance), your income and expenses for the current month, and a donut chart of your spending by category.</p>';
+  h+='<ul><li><b>Account cards</b> — tap any card to view or edit that account.</li>'
+    +'<li><b>Spending donut</b> — tap a slice to highlight a category, then tap \u201cShow all records\u201d to see the individual transactions behind it.</li>'
+    +'<li><b>Privacy</b> — the eye icon hides your amounts if you want to open the app in public.</li>'
+    +'<li><b>Offline indicator</b> — a yellow triangle appears when you are offline; it disappears once you reconnect.</li></ul>';
+
+  h+='<h2>3. Adding entries</h2>';
+  h+='<p>Tap the + button to add a transaction. Choose the type — expense, income, or transfer — then fill in the amount, account, category and any notes.</p>';
+  h+='<h3>Smart defaults</h3>';
+  h+='<ul><li>The app remembers your last used <b>account</b> and <b>payment method</b>, so repeat entries are faster.</li>'
+    +'<li>The <b>currency follows the account</b> automatically — your EUR account defaults to EUR, your GBP account to GBP. You can still override it for a one-off, and that override only applies to that single entry.</li></ul>';
+  h+='<h3>Transfers</h3>';
+  h+='<p>A transfer moves money between two of your own accounts. It reduces one account and increases the other by the equivalent amount, converting currency where needed. Transfers are not counted as income or expense — they are just internal movements.</p>';
+  h+='<h3>Editing and duplicating</h3>';
+  h+='<p>Tap any entry to edit it. The edit screen shows the account it was created with. You can also tap <b>Duplicate entry</b> to create a copy with the same details but today\u2019s date — handy for recurring manual entries.</p>';
+
+  h+='<h2>4. Accounts</h2>';
+  h+='<p>Manage your accounts under More \u2192 Accounts.</p>';
+  h+='<ul><li><b>Reorder</b> — use the up/down arrows to set the order they appear on the Dashboard.</li>'
+    +'<li><b>Hide</b> — the eye icon cycles through: visible \u2192 hidden from the Dashboard (but still counted in totals) \u2192 fully hidden (not in totals either).</li>'
+    +'<li><b>Colour</b> — when creating an account you can pick a preset colour or enter a custom hex code.</li></ul>';
+  h+='<h3>Savings / investment accounts</h3>';
+  h+='<p>These are for things like pensions or stocks &amp; shares, where you don\u2019t log every transaction. Instead you periodically enter the current total value (for example each quarter from your statement). The app keeps a dated history and shows the gain or loss since your last entry.</p>';
+  h+='<div class="note">Savings values are treated as a snapshot, not spendable cash. They are shown separately from your cash balance and appear in the net-worth figure in Statistics, clearly marked as provisional because their value fluctuates until sold.</div>';
+
+  h+='<h2>5. Planned payments</h2>';
+  h+='<p>Under Planning, set up recurring payments (rent, subscriptions, bills) with an amount, category, account, and frequency (weekly, monthly, quarterly, yearly, and more).</p>';
+  h+='<ul><li>The app can log them automatically when they fall due.</li>'
+    +'<li>You can also <b>Log now</b> to record one early — the app then advances it to its next due date so it isn\u2019t shown as still due.</li>'
+    +'<li>Notifications for upcoming payments are tappable and take you straight to the planned payments view.</li></ul>';
+
+  h+='<h2>6. Budgets</h2>';
+  h+='<p>Set monthly or yearly spending limits per category. The app tracks your spending against each budget and shows how much is left, so you can see at a glance if you are on track or over.</p>';
+
+  h+='<h2>7. Statistics</h2>';
+  h+='<p>The Statistics section gives you deeper views over different time periods — this month, this year, all time, or a custom range.</p>';
+  h+='<ul><li><b>Summary</b> — income vs expenses and a category breakdown. Tap any donut slice, then \u201cShow all records\u201d to see the entries.</li>'
+    +'<li><b>Trends</b> — how your spending and income move over time.</li>'
+    +'<li><b>Balance</b> — your total across all cash accounts, converted to GBP.</li>'
+    +'<li><b>Net worth</b> (in the All-time view) — your cash position plus the current value of your savings, with the savings portion clearly flagged as provisional.</li>'
+    +'<li><b>Map</b> — if you enable location tagging, entries can be shown on a map of where you spent.</li></ul>';
+
+  h+='<h2>8. Currency conversion</h2>';
+  h+='<p>The app converts foreign-currency balances to GBP using official European Central Bank reference rates (via the Frankfurter service). These update once per working day, which is ideal for tracking personal net worth. It is not a live trading rate, so figures are best read as \u201caccurate as of today\u2019s rate.\u201d</p>';
+
+  h+='<h2>9. Working offline</h2>';
+  h+='<p>The app saves a copy of your data on your device so it can open and show your figures without a connection. Entries you add offline are queued and marked as pending, then uploaded automatically when you reconnect.</p>';
+  h+='<div class="note">On iPhone, if you don\u2019t open the app for a long time, Apple may clear its stored data to free space. If that happens, just open the app once with a connection and it will reload everything from your Google Sheet.</div>';
+
+  h+='<h2>10. Preferences &amp; data</h2>';
+  h+='<ul><li><b>Preferences</b> — manage categories and labels, location tagging, appearance (light/dark), and dashboard layout.</li>'
+    +'<li><b>Data &amp; Security</b> — export your data, open your Google Sheet, and run diagnostics.</li></ul>';
+
+  h+='<div class="foot">Personal Budgeting App · Version '+v+' · Developed by Tiago d\u2019Aubign\u00e9\u2122<br>Generated from within the app. To save as PDF, choose \u201cSave as PDF\u201d (or \u201cPrint\u201d \u2192 PDF) in the dialog.</div>';
+  h+='</body></html>';
+
+  // Open the guide in a new window and trigger the print/save dialog.
+  try{
+    var w=window.open('','_blank');
+    if(!w){if(typeof toast==='function')toast('Please allow pop-ups to open the guide','err');return;}
+    w.document.open();w.document.write(h);w.document.close();
+    setTimeout(function(){try{w.focus();w.print();}catch(e){}},400);
+  }catch(e){if(typeof toast==='function')toast('Could not open the guide','err');}
+}
+
 function openAddPlanned(onDone){
   var overlay=document.createElement('div');
   overlay.className='overlay';overlay.style.zIndex='300';
@@ -3151,15 +3253,27 @@ function openAddBudget(onDone){
 
 function renderMore(el){el.innerHTML=`<div class="ph"><h1 class="pt">More</h1></div><div class="ss-t">Accounts</div><div class="sr-wrap">${ACCOUNTS.map((a,ai)=>{const b=getAccBal(a.ID);const hid=a.Hidden||'';const eyeOff=(hid==='dashboard'||hid==='both');const savings=(a.AccType==='savings');return`<div class="sr"><div style="display:flex;flex-direction:column;gap:1px;margin-right:4px"><button class="acc-move" data-accup="${a.ID}" ${ai===0?'disabled':''} style="background:none;border:none;color:${ai===0?'var(--t3)':'var(--t2)'};cursor:${ai===0?'default':'pointer'};padding:0;line-height:1;font-size:11px">▲</button><button class="acc-move" data-accdown="${a.ID}" ${ai===ACCOUNTS.length-1?'disabled':''} style="background:none;border:none;color:${ai===ACCOUNTS.length-1?'var(--t3)':'var(--t2)'};cursor:${ai===ACCOUNTS.length-1?'default':'pointer'};padding:0;line-height:1;font-size:11px">▼</button></div><div class="si" data-editacc="${a.ID}" style="cursor:pointer;background:${a.Colour}18;color:${a.Colour};font-family:var(--mono);font-size:17.7px;font-weight:600">${a.Symbol}</div><div class="sr-info" data-editacc="${a.ID}" style="cursor:pointer"><div class="sr-t">${a.Name}${savings?' <span style="font-size:10px;color:var(--t2);font-weight:500;border:1px solid var(--border2);border-radius:4px;padding:1px 5px;vertical-align:middle">Savings</span>':''}</div><div class="sr-s">${a.Currency} · ${fmt(b,a.Currency)}${hid==='dashboard'?' · hidden on dashboard':''}${hid==='both'?' · fully hidden':''}</div></div><button class="acc-eye" data-acceye="${a.ID}" aria-label="Visibility" style="background:none;border:none;color:${eyeOff?'#d9a441':'var(--t2)'};cursor:pointer;padding:6px;margin-right:2px">${eyeOff?'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>':'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>'}</button><button class="acc-del-btn" data-delacc="${a.ID}" style="background:var(--red-s);border:1px solid rgba(224,82,82,.25);color:var(--red);border-radius:7px;padding:5px 10px;font-size:13px;font-weight:600;cursor:pointer;font-family:var(--font)">Delete</button></div>`;}).join('')}</div><div class="ss-t">Preferences</div><div class="sr-wrap"><div class="sr" id="manage-cats"><div class="si" style="background:rgba(168,120,56,.1)"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#a87838" stroke-width="1.7" stroke-linecap="round"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg></div><div class="sr-info"><div class="sr-t">Manage categories</div><div class="sr-s">${CATS.expense.length} expense · ${CATS.income.length} income</div></div><div class="sr-r">→</div></div><div class="sr" id="more-managelabels" style="cursor:pointer"><div class="si" style="background:rgba(70,114,196,.1)"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#4672c4" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg></div><div class="sr-info"><div class="sr-t">Manage labels</div><div class="sr-s">Show/hide labels and set their colours</div></div><div class="sr-r">→</div></div><div class="sr" id="more-location" style="cursor:pointer"><div class="si" style="background:rgba(70,114,196,.1)"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#4672c4" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg></div><div class="sr-info"><div class="sr-t">Location tagging</div><div class="sr-s">Record where you make each entry (for the map)</div></div><div id="loctoggle-sw" style="width:44px;height:26px;border-radius:13px;background:var(--bg-input);position:relative;flex-shrink:0;transition:.2s"><div id="loctoggle-knob" style="width:20px;height:20px;border-radius:50%;background:#fff;position:absolute;top:3px;left:3px;transition:.2s"></div></div></div><div class="sr" id="more-theme" style="cursor:pointer"><div class="si" style="background:rgba(168,120,56,.12)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#a87838" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg></div><div class="sr-info"><div class="sr-t">Appearance</div><div class="sr-s" id="theme-label">Dark</div></div><div class="sr-r" id="theme-switch" style="font-size:13px;color:var(--blue);font-weight:600">Switch</div></div><div class="sr" id="more-customise" style="cursor:pointer"><div class="si" style="background:rgba(70,114,196,.1)"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#4672c4" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg></div><div class="sr-info"><div class="sr-t">Customise dashboard</div><div class="sr-s">Reorder sections</div></div><div class="sr-r">→</div></div></div><div class="ss-t">Data & Security</div><div class="sr-wrap"><div class="sr" id="more-export"><div class="si" style="background:var(--green-s)"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#3d9468" stroke-width="1.8" stroke-linecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7,10 12,15 17,10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></div><div class="sr-info"><div class="sr-t">Export CSV</div><div class="sr-s">BudgetBakers-compatible format</div></div><div class="sr-r">→</div></div><div class="sr" id="more-sheet"><div class="si" style="background:var(--blue-s)"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#4672c4" stroke-width="1.8" stroke-linecap="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14,2 14,8 20,8"/></svg></div><div class="sr-info"><div class="sr-t">Open Google Sheet</div><div class="sr-s">Your private Drive</div></div><div class="sr-r">↗</div></div><div class="sr" id="more-diag" style="cursor:pointer"><div class="si" style="background:rgba(45,181,110,.1)"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#2db56e" stroke-width="1.8" stroke-linecap="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></div><div class="sr-info"><div class="sr-t">Run diagnostic</div><div class="sr-s">Show balance breakdown</div></div><div class="sr-r">→</div></div><div class="sr" id="more-repair"><div class="si" style="background:rgba(168,72,72,.1)"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#a84848" stroke-width="1.8" stroke-linecap="round"><polyline points="1 4 1 10 7 10"/><polyline points="23 20 23 14 17 14"/><path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15"/></svg></div><div class="sr-info"><div class="sr-t" style="color:var(--red)">Reset categories & accounts</div><div class="sr-s">Rewrites sheet tabs with correct data</div></div><div class="sr-r">→</div></div><div class="sr" id="more-sync"><div class="si" style="background:rgba(114,88,168,.1)"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#7258a8" stroke-width="1.8" stroke-linecap="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg></div><div class="sr-info"><div class="sr-t">Sync now</div><div class="sr-s">Last synced ${lastSync?lastSync.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}):'—'}</div></div><div class="sr-r">→</div></div></div><div class="ss-t">Profile</div><div class="sr-wrap"><div class="sr" id="more-profile"><div class="si" style="background:var(--blue-s)"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#4672c4" stroke-width="1.7" stroke-linecap="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div><div class="sr-info"><div class="sr-t">Profile & Settings</div><div class="sr-s">${userProfile.email||'—'}</div></div><div class="sr-r">→</div></div><div class="sr" id="more-signout"><div class="si" style="background:var(--red-s)"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#a84848" stroke-width="1.7" stroke-linecap="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16,17 21,12 16,7"/><line x1="21" y1="12" x2="9" y2="12"/></svg></div><div class="sr-info"><div class="sr-t" style="color:var(--red)">Sign out</div><div class="sr-s">Clears local session only</div></div></div></div><div class="ss-t" style="margin-top:10px">About</div>
 <div class="card" style="padding:0;margin-bottom:10px;overflow:hidden">
+  <div id="guide-toggle" style="display:flex;align-items:center;gap:11px;padding:14px 16px;cursor:pointer">
+    <div style="width:36px;height:36px;border-radius:9px;background:#2e7a72;display:flex;align-items:center;justify-content:center;flex-shrink:0"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg></div>
+    <div style="flex:1"><div style="font-size:14px;font-weight:700">User guide</div><div style="font-size:11px;color:var(--t2)">How to use every part of the app</div></div>
+    <svg id="guide-chevron" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--t2)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="transition:transform .25s"><polyline points="6 9 12 15 18 9"/></svg>
+  </div>
+  <div id="guide-body" style="display:none;padding:0 16px 16px 16px">
+    <div style="font-size:12px;color:var(--t1);line-height:1.5;margin-bottom:12px">A complete guide to everything the app does — accounts, entries, transfers, planned payments, budgets, savings, statistics and more. Download the PDF to read or keep.</div>
+    <button id="guide-download" class="btn pri" style="width:100%;display:flex;align-items:center;justify-content:center;gap:8px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Download user guide (PDF)</button>
+    <div style="font-size:10.5px;color:var(--t2);line-height:1.5;margin-top:9px;text-align:center">Opens the guide for version ${APP_VERSION}. Save it to Files or print it.</div>
+  </div>
+</div>
+<div class="card" style="padding:0;margin-bottom:10px;overflow:hidden">
   <div id="about-toggle" style="display:flex;align-items:center;gap:11px;padding:14px 16px;cursor:pointer">
     <div style="width:36px;height:36px;border-radius:9px;background:#4672c4;display:flex;align-items:center;justify-content:center;flex-shrink:0"><svg width="20" height="20" viewBox="0 0 48 48" fill="none"><rect width="48" height="48" rx="13" fill="#4672c4"/><path d="M11 28L19 20L25 26L37 14" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/><circle cx="37" cy="14" r="3" fill="white"/></svg></div>
-    <div style="flex:1"><div style="font-size:14px;font-weight:700">Personal Budgeting App</div><div style="font-size:11px;color:var(--t2)">Version 3.2</div></div>
+    <div style="flex:1"><div style="font-size:14px;font-weight:700">Personal Budgeting App</div><div style="font-size:11px;color:var(--t2)">Version ${APP_VERSION}</div></div>
     <svg id="about-chevron" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--t2)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="transition:transform .25s"><polyline points="6 9 12 15 18 9"/></svg>
   </div>
   <div id="about-body" style="display:none;padding:0 16px 16px 16px">
     <div style="font-size:12px;color:var(--t1);line-height:1.5;margin-bottom:10px">Flexible budgeting and spending tracking, so you stay in control and achieve your goals.</div>
     <div style="font-size:11px;color:var(--t2);line-height:1.5;padding:10px;background:var(--bg-input);border-radius:8px;margin-bottom:10px"><strong style="color:var(--t1)">Your data — Your Drive.</strong><br>Everything is stored privately in your own Google Sheet. No server, no tracking.</div>
-    <div style="font-size:11px;color:var(--t2);line-height:1.6"><strong style="color:var(--t1);font-size:11.5px">What's new in 3.2</strong><br>• Smoother, calmer insights<br>• Fixed donut centre alignment<br>• Records open directly with date filtering &amp; custom ranges<br>• Preferences grouped together<br>• Better iOS full-screen fit</div>
+    <div style="font-size:11px;color:var(--t2);line-height:1.6"><strong style="color:var(--t1);font-size:11.5px">What's new in ${APP_WHATS_NEW.version}</strong><br>${APP_WHATS_NEW.items.map(function(it){return '• '+it;}).join('<br>')}</div>
   </div>
 </div>
 <div style="text-align:center;color:var(--t3);font-size:11.8px;padding:16px 0 8px">Personal Budgeting App · Developed by Tiago d'Aubigné™</div>`;document.getElementById('more-export')?.addEventListener('click',exportCSV);document.getElementById('more-sheet')?.addEventListener('click',()=>{if(sheetId)window.open(`https://docs.google.com/spreadsheets/d/${sheetId}`,'_blank');});document.getElementById('more-sync')?.addEventListener('click',async()=>{toast('Syncing…');await loadAll();render(curPage);toast('Synced ✓','suc');});
@@ -3177,6 +3291,11 @@ document.getElementById('more-diag')?.addEventListener('click',function(){runDia
     var body=document.getElementById('about-body'),chev=document.getElementById('about-chevron');
     if(body){var open=body.style.display!=='none';body.style.display=open?'none':'block';if(chev)chev.style.transform=open?'rotate(0deg)':'rotate(180deg)';}
   });
+  document.getElementById('guide-toggle')?.addEventListener('click',function(){
+    var body=document.getElementById('guide-body'),chev=document.getElementById('guide-chevron');
+    if(body){var open=body.style.display!=='none';body.style.display=open?'none':'block';if(chev)chev.style.transform=open?'rotate(0deg)':'rotate(180deg)';}
+  });
+  document.getElementById('guide-download')?.addEventListener('click',function(){downloadUserGuide();});
   document.getElementById('more-managelabels')?.addEventListener('click',openLabelManager);
   // Location tagging toggle (opt-in; privacy-sensitive)
   (function(){
