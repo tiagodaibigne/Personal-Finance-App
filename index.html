@@ -2987,6 +2987,8 @@ function openAddPlanned(onDone){
   overlay.className='overlay';overlay.style.zIndex='300';
   var catOpts=([].concat(CATS.expense,CATS.income)).sort(function(a,b){return a.Name.localeCompare(b.Name);}).map(function(c){return'<option value="'+c.ID+'">'+c.Name+'</option>';}).join('');
   var accOpts=ACCOUNTS.map(function(a){return'<option value="'+a.ID+'">'+a.Symbol+' '+a.Name+'</option>';}).join('');
+  var payTypes=['Cash','Debit card','Credit card','Bank transfer','Voucher','Mobile payment','Web payment'];
+  var payOpts=payTypes.map(function(p){return'<option value="'+p+'"'+(p==='Bank transfer'?' selected':'')+'>'+p+'</option>';}).join('');
   overlay.innerHTML='<div class="sheet"><div class="handle"></div><div class="mtitle">Add Planned Payment</div>'
     +'<div class="fg"><label class="fl">Name</label><input class="fi" id="np-name" placeholder="e.g. Rent, Netflix, Spotify"/></div>'
     +'<div class="fg"><label class="fl">Amount</label>'
