@@ -258,20 +258,18 @@ const TX_HEADERS=['account','category','currency','amount','ref_currency_amount'
 // ============ APP VERSION & CHANGELOG ============
 // Production-era versioning: MAJOR.MINOR (e.g. v4.0). Bump MINOR each release;
 // bump MAJOR for a significant milestone. Update APP_WHATS_NEW with each release.
-var APP_VERSION='4.1';
+var APP_VERSION='4.2';
 var APP_WHATS_NEW={
-  version:'4.1',
+  version:'4.2',
   date:'July 2026',
   items:[
-    'About section tidied — user guide and version now share one panel',
-    'Spending charts: a subtle line now closes off the records list when expanded',
-    'Full user guide available under More → About (PDF)',
-    'Reliable sign-in screen (no more hanging on the splash)',
-    'Add planned payments works again',
-    'Log-now advances a planned payment to its next date, even when logged early',
-    'Tappable notifications open the planned payments view',
-    'Currency follows the selected account; last account & payment method remembered',
-    'Clearer cash vs net-worth figures, with savings kept separate'
+    'Much faster opening — your data now appears instantly from the saved copy',
+    'The sign-in / profile check no longer holds up the app on a weak connection',
+    'The app no longer re-checks your sheet structure on every open',
+    'Offline opening is smoother and more reliable again',
+    'Background refresh kept, but quieter and no longer blocks the screen',
+    'About section tidied — user guide and version share one panel',
+    'Spending charts: a subtle line closes off the records list when expanded'
   ]
 };
 let sheetId=null,TX=[],ACCOUNTS=[],CATS={expense:[],income:[],transfer:[]},PLANNED=[],BUDGETS=[],SAVINGS_HISTORY=[],userProfile={},curPage='dashboard',txType='expense',selCat=null,trendAcc=null,hideAmounts=false,dashDonutType='expense',statDonutType='expense',recPeriod='30 days',recMonthOff=0,recCustomFrom='',recCustomTo='',statPeriod='month',statMonthOff=0,statYear=new Date().getFullYear(),statCustomS='',statCustomE=new Date().toISOString().split('T')[0],statView='summary',lastSync=null;
@@ -889,7 +887,11 @@ function showSilentSignin(){
 }
 
 function showAuth(){hideSplash();document.getElementById('auth').style.display='flex';document.getElementById('signin-btn').onclick=signIn;}
-async function onSignedIn(){try{const t=gapi.client.getToken()?.access_token;if(t){const r=await fetch('https://www.googleapis.com/oauth2/v3/userinfo',{headers:{Authorization:'Bearer '+t}});userProfile=await r.json();}}catch(e){}hideSplash();document.getElementById('auth').style.display='none';document.getElementById('main').style.display='flex';
+async function onSignedIn(){hideSplash();document.getElementById('auth').style.display='none';document.getElementById('main').style.display='flex';
+  // Fetch the user's profile (name/email) in the BACKGROUND. It's only needed on the Profile
+  // screen, so it must never delay the app opening (this was blocking every open, badly on weak
+  // connections). When it arrives, refresh the More page if that's what's showing.
+  (function(){try{var t=gapi.client.getToken()?.access_token;if(t){fetch('https://www.googleapis.com/oauth2/v3/userinfo',{headers:{Authorization:'Bearer '+t}}).then(function(r){return r.json();}).then(function(j){userProfile=j;if(typeof curPage!=='undefined'&&curPage==='more'){try{render('more');}catch(e){}}}).catch(function(){});}}catch(e){}})();
   // CACHE-FIRST: if we have cached data, show it immediately so the app feels instant
   // even on a weak connection. The fresh data loads in the background below.
   var shownFromCache=false;
@@ -899,7 +901,7 @@ async function onSignedIn(){try{const t=gapi.client.getToken()?.access_token;if(
   if(!shownFromCache){document.getElementById('p-dashboard').innerHTML='<div class="spinner"></div>';}
   try{
     await getOrCreateSheet();
-    if(typeof migrateSchema==='function'){await migrateSchema();}
+    if(typeof migrateSchema==='function'){var _mkey='finance_schema_migrated_'+APP_VERSION;var _done=false;try{_done=localStorage.getItem(_mkey)==='1';}catch(e){}if(!_done){await migrateSchema();try{localStorage.setItem(_mkey,'1');}catch(e){}}}
     if(typeof fetchLiveRates==='function'){await fetchLiveRates();}
     await loadAll();
     await checkAutoPlanned();
