@@ -15,7 +15,7 @@
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <style>
-:root{--bg:#0c0c0c;--bg-card:#1a1a1a;--bg-card2:#222222;--bg-input:#181818;--border:#2a2a2a;--border2:#202020;--t1:#dedede;--t2:#6a6a6a;--t3:#3e3e3e;--blue:#4672c4;--blue-s:rgba(70,114,196,.1);--green:#2db56e;--green-s:rgba(45,181,110,.1);--red:#e05252;--red-s:rgba(224,82,82,.1);--amber:#a87838;--purple:#7258a8;--nav:56px;--r:14px;--rsm:9px;--rxl:20px;--font:'DM Sans',sans-serif;--mono:'Geist Mono','DM Mono',monospace;--ease:cubic-bezier(.4,0,.2,1);--spring:cubic-bezier(.34,1.2,.64,1);--safe-top:max(env(safe-area-inset-top,0px),12px);--safe-bottom:min(env(safe-area-inset-bottom,0px),8px);--nav-bg:rgba(12,12,12,.92);--ni-inactive:#8a8a8a;--hbtn-icon:#b8b8b8  --scrim:rgba(0,0,0,.78);
+:root{--bg:#0c0c0c;--bg-card:#1a1a1a;--bg-card2:#222222;--bg-input:#181818;--border:#2a2a2a;--border2:#202020;--t1:#f0f0f0;--t2:#9a9a9a;--t3:#5a5a5a;--blue:#4672c4;--blue-s:rgba(70,114,196,.1);--green:#2db56e;--green-s:rgba(45,181,110,.1);--red:#e05252;--red-s:rgba(224,82,82,.1);--amber:#a87838;--purple:#7258a8;--nav:56px;--r:14px;--rsm:9px;--rxl:20px;--font:'DM Sans',sans-serif;--mono:'Geist Mono','DM Mono',monospace;--ease:cubic-bezier(.4,0,.2,1);--spring:cubic-bezier(.34,1.2,.64,1);--safe-top:max(env(safe-area-inset-top,0px),12px);--safe-bottom:min(env(safe-area-inset-bottom,0px),8px);--nav-bg:rgba(12,12,12,.92);--ni-inactive:#a5a5a5;--hbtn-icon:#d0d0d0  --scrim:rgba(0,0,0,.78);
 }
 /* ── LIGHT THEME ── warm off-white, not pure white, easy on the eyes ── */
 [data-theme="light"]{
@@ -25,9 +25,9 @@
   --bg-input:#eeebe5;       /* inputs a touch darker for definition */
   --border:#e0ddd5;
   --border2:#eae7e0;
-  --t1:#2a2a28;             /* near-black primary text */
-  --t2:#7a766e;             /* muted secondary text */
-  --t3:#b8b4aa;             /* faint tertiary */
+  --t1:#1e1e1c;             /* near-black primary text */
+  --t2:#5c5951;             /* secondary text — darkened for readability in bright light */
+  --t3:#9a968c;             /* tertiary */
   --blue:#3a63b8;
   --blue-s:rgba(58,99,184,.09);
   --green:#1f9d5c;
@@ -258,18 +258,17 @@ const TX_HEADERS=['account','category','currency','amount','ref_currency_amount'
 // ============ APP VERSION & CHANGELOG ============
 // Production-era versioning: MAJOR.MINOR (e.g. v4.0). Bump MINOR each release;
 // bump MAJOR for a significant milestone. Update APP_WHATS_NEW with each release.
-var APP_VERSION='4.2';
+var APP_VERSION='4.3';
 var APP_WHATS_NEW={
-  version:'4.2',
+  version:'4.3',
   date:'July 2026',
   items:[
-    'Much faster opening — your data now appears instantly from the saved copy',
-    'The sign-in / profile check no longer holds up the app on a weak connection',
-    'The app no longer re-checks your sheet structure on every open',
-    'Offline opening is smoother and more reliable again',
-    'Background refresh kept, but quieter and no longer blocks the screen',
-    'About section tidied — user guide and version share one panel',
-    'Spending charts: a subtle line closes off the records list when expanded'
+    'Brighter, easier-to-read text throughout — much clearer in bright light',
+    'Brighter category colours, with a one-tap option to refresh your existing ones',
+    'Better contrast in the light theme too',
+    'Much faster opening — your data appears instantly from the saved copy',
+    'The profile check no longer holds up the app on a weak connection',
+    'Offline opening is smoother and more reliable again'
   ]
 };
 let sheetId=null,TX=[],ACCOUNTS=[],CATS={expense:[],income:[],transfer:[]},PLANNED=[],BUDGETS=[],SAVINGS_HISTORY=[],userProfile={},curPage='dashboard',txType='expense',selCat=null,trendAcc=null,hideAmounts=false,dashDonutType='expense',statDonutType='expense',recPeriod='30 days',recMonthOff=0,recCustomFrom='',recCustomTo='',statPeriod='month',statMonthOff=0,statYear=new Date().getFullYear(),statCustomS='',statCustomE=new Date().toISOString().split('T')[0],statView='summary',lastSync=null;
@@ -587,39 +586,39 @@ async function seedDefaults(){const now=new Date().toISOString();const accs=[
   ['€','€ Euro','€','EUR','0','#2e7a72','TRUE',now],
   ['Account 3','Account 3','€','EUR','0','#7258a8','TRUE',now],
 ];const cats=[
-    ['Eating Out','Eating Out','expense','food','#a87838','','TRUE'],
-    ['Groceries','Groceries','expense','food','#9e7030','','TRUE'],
-    ['Coffee','Coffee','expense','coffee','#8a5a38','','TRUE'],
-    ['Transport','Transport','expense','trans','#7258a8','','TRUE'],
-    ['Shopping','Shopping','expense','shop','#a85868','','TRUE'],
-    ['Bill & Services','Bill & Services','expense','bills','#a87838','','TRUE'],
-    ['Health','Health','expense','health','#a84848','','TRUE'],
-    ['Entertainment','Entertainment','expense','entert','#2e7a72','','TRUE'],
-    ['Travel','Travel','expense','travel','#4672c4','','TRUE'],
-    ['Fitness','Fitness','expense','run','#3d9468','','TRUE'],
-    ['Home','Home','expense','home','#58728a','','TRUE'],
-    ['Family','Family','expense','family','#6e8a38','','TRUE'],
-    ['Baby','Baby','expense','family','#7a9438','','TRUE'],
-    ['Education','Education','expense','edu','#7258a8','','TRUE'],
-    ['Gambling','Gambling','expense','other','#a84848','','TRUE'],
-    ['Rent','Rent','expense','bills','#b87038','','TRUE'],
-    ['Mortgage','Mortgage','expense','bills','#a86030','','TRUE'],
-    ['General Out','General Out','expense','other','#5a6a7a','','TRUE'],
-    ['Tax Out','Tax Out','expense','other','#6a5a8a','','TRUE'],
-    ['Brokerage Out','Brokerage Out','expense','invest','#2e7a72','','TRUE'],
-    ['Investments Out','Investments Out','expense','invest','#3a8a62','','TRUE'],
-    ['Pay Check 2 Out','Pay Check 2 Out','expense','other','#4a5a6a','','TRUE'],
+    ['Eating Out','Eating Out','expense','food','#d99a45','','TRUE'],
+    ['Groceries','Groceries','expense','food','#cf913c','','TRUE'],
+    ['Coffee','Coffee','expense','coffee','#b8783f','','TRUE'],
+    ['Transport','Transport','expense','trans','#9575d4','','TRUE'],
+    ['Shopping','Shopping','expense','shop','#d4738a','','TRUE'],
+    ['Bill & Services','Bill & Services','expense','bills','#d99a45','','TRUE'],
+    ['Health','Health','expense','health','#e05f5f','','TRUE'],
+    ['Entertainment','Entertainment','expense','entert','#3da99c','','TRUE'],
+    ['Travel','Travel','expense','travel','#5b8ee0','','TRUE'],
+    ['Fitness','Fitness','expense','run','#4fc287','','TRUE'],
+    ['Home','Home','expense','home','#7593b0','','TRUE'],
+    ['Family','Family','expense','family','#94b34a','','TRUE'],
+    ['Baby','Baby','expense','family','#a3c24a','','TRUE'],
+    ['Education','Education','expense','edu','#9575d4','','TRUE'],
+    ['Gambling','Gambling','expense','other','#e05f5f','','TRUE'],
+    ['Rent','Rent','expense','bills','#e0913f','','TRUE'],
+    ['Mortgage','Mortgage','expense','bills','#d17f3d','','TRUE'],
+    ['General Out','General Out','expense','other','#7d90a3','','TRUE'],
+    ['Tax Out','Tax Out','expense','other','#8d7ab0','','TRUE'],
+    ['Brokerage Out','Brokerage Out','expense','invest','#3da99c','','TRUE'],
+    ['Investments Out','Investments Out','expense','invest','#4bb37f','','TRUE'],
+    ['Pay Check 2 Out','Pay Check 2 Out','expense','other','#6b7d8f','','TRUE'],
     ['Pay Check 1 Out','Pay Check 1 Out','expense','other','#3a4a5a','','TRUE'],
     ['Pay Check 3 Out','Pay Check 3 Out','expense','other','#5a6870','','TRUE'],
     ['Loss','Loss','expense','other','#8a4848','','TRUE'],
     ['Savings','Savings','expense','other_i','#4a7a8a','','TRUE'],
-    ['Pay Check 1','Pay Check 1','income','salary','#3d9468','','TRUE'],
+    ['Pay Check 1','Pay Check 1','income','salary','#4fc287','','TRUE'],
     ['Pay Check 2','Pay Check 2','income','salary','#4aaa78','','TRUE'],
     ['General In','General In','income','other','#4a9e72','','TRUE'],
-    ['Investments In','Investments In','income','invest','#2e7a72','','TRUE'],
+    ['Investments In','Investments In','income','invest','#3da99c','','TRUE'],
     ['Brokerage In','Brokerage In','income','invest','#3a8a82','','TRUE'],
     ['Tax In','Tax In','income','other','#6a88b8','','TRUE'],
-    ['TRANSFER','TRANSFER','transfer','transfer','#4672c4','','TRUE'],
+    ['TRANSFER','TRANSFER','transfer','transfer','#5b8ee0','','TRUE'],
   ];await batchUpdate([{range:'Accounts!A2',values:accs},{range:'Categories!A2',values:cats},{range:'Settings!A2',values:[['base_currency','GBP'],['created_at',now],['version','3.0.0']]}]);}
 async function batchUpdate(data){await gapi.client.sheets.spreadsheets.values.batchUpdate({spreadsheetId:sheetId,resource:{valueInputOption:'RAW',data}});}
 async function readSheet(tab){const r=await gapi.client.sheets.spreadsheets.values.get({spreadsheetId:sheetId,range:tab});return r.result.values||[];}
@@ -3086,6 +3085,36 @@ function downloadUserGuide(){
   }catch(e){if(typeof toast==='function')toast('Could not open the guide','err');}
 }
 
+var BRIGHT_MAP={'#a87838':'#d99a45','#9e7030':'#cf913c','#8a5a38':'#b8783f','#7258a8':'#9575d4','#a85868':'#d4738a','#a84848':'#e05f5f','#2e7a72':'#3da99c','#4672c4':'#5b8ee0','#3d9468':'#4fc287','#58728a':'#7593b0','#6e8a38':'#94b34a','#7a9438':'#a3c24a','#b87038':'#e0913f','#a86030':'#d17f3d','#5a6a7a':'#7d90a3','#6a5a8a':'#8d7ab0','#3a8a62':'#4bb37f','#4a5a6a':'#6b7d8f','#8a7a5a':'#b5a071','#6a7a8a':'#8fa3b5'};
+async function brightenCategoryColours(){
+  if(!isOnline()){toast('You need to be online to do this','err');return;}
+  if(!confirm('Brighten your category colours?\n\nThis updates the colour of each category in your Google Sheet so they are easier to read. Your transactions and amounts are not touched.'))return;
+  try{
+    var rows=await readSheet('Categories');
+    if(!rows||rows.length<2){toast('No categories found','err');return;}
+    var hdr=rows[0].map(function(h){return String(h||'').toLowerCase();});
+    var ci=hdr.indexOf('colour'); if(ci<0)ci=hdr.indexOf('color');
+    if(ci<0){toast('Could not find the colour column','err');return;}
+    var col=String.fromCharCode(65+ci);
+    var vals=[],changed=0;
+    for(var r=1;r<rows.length;r++){
+      var cur=String((rows[r]||[])[ci]||'').trim().toLowerCase();
+      var nw=BRIGHT_MAP[cur];
+      if(nw){vals.push([nw]);changed++;} else {vals.push([(rows[r]||[])[ci]||'']);}
+    }
+    if(!changed){toast('Your colours are already up to date','');return;}
+    await gapi.client.sheets.spreadsheets.values.update({
+      spreadsheetId:sheetId,
+      range:'Categories!'+col+'2:'+col+(vals.length+1),
+      valueInputOption:'RAW',
+      resource:{values:vals}
+    });
+    await loadAll();
+    render(typeof curPage!=='undefined'&&curPage?curPage:'more');
+    toast(changed+' categories brightened','suc');
+  }catch(e){console.error(e);toast('Could not update colours','err');}
+}
+
 function openAddPlanned(onDone){
   var overlay=document.createElement('div');
   overlay.className='overlay';overlay.style.zIndex='300';
@@ -3253,7 +3282,7 @@ function openAddBudget(onDone){
   function close(){overlay.classList.remove('on');setTimeout(function(){overlay.remove();},300);}
 }
 
-function renderMore(el){el.innerHTML=`<div class="ph"><h1 class="pt">More</h1></div><div class="ss-t">Accounts</div><div class="sr-wrap">${ACCOUNTS.map((a,ai)=>{const b=getAccBal(a.ID);const hid=a.Hidden||'';const eyeOff=(hid==='dashboard'||hid==='both');const savings=(a.AccType==='savings');return`<div class="sr"><div style="display:flex;flex-direction:column;gap:1px;margin-right:4px"><button class="acc-move" data-accup="${a.ID}" ${ai===0?'disabled':''} style="background:none;border:none;color:${ai===0?'var(--t3)':'var(--t2)'};cursor:${ai===0?'default':'pointer'};padding:0;line-height:1;font-size:11px">▲</button><button class="acc-move" data-accdown="${a.ID}" ${ai===ACCOUNTS.length-1?'disabled':''} style="background:none;border:none;color:${ai===ACCOUNTS.length-1?'var(--t3)':'var(--t2)'};cursor:${ai===ACCOUNTS.length-1?'default':'pointer'};padding:0;line-height:1;font-size:11px">▼</button></div><div class="si" data-editacc="${a.ID}" style="cursor:pointer;background:${a.Colour}18;color:${a.Colour};font-family:var(--mono);font-size:17.7px;font-weight:600">${a.Symbol}</div><div class="sr-info" data-editacc="${a.ID}" style="cursor:pointer"><div class="sr-t">${a.Name}${savings?' <span style="font-size:10px;color:var(--t2);font-weight:500;border:1px solid var(--border2);border-radius:4px;padding:1px 5px;vertical-align:middle">Savings</span>':''}</div><div class="sr-s">${a.Currency} · ${fmt(b,a.Currency)}${hid==='dashboard'?' · hidden on dashboard':''}${hid==='both'?' · fully hidden':''}</div></div><button class="acc-eye" data-acceye="${a.ID}" aria-label="Visibility" style="background:none;border:none;color:${eyeOff?'#d9a441':'var(--t2)'};cursor:pointer;padding:6px;margin-right:2px">${eyeOff?'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>':'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>'}</button><button class="acc-del-btn" data-delacc="${a.ID}" style="background:var(--red-s);border:1px solid rgba(224,82,82,.25);color:var(--red);border-radius:7px;padding:5px 10px;font-size:13px;font-weight:600;cursor:pointer;font-family:var(--font)">Delete</button></div>`;}).join('')}</div><div class="ss-t">Preferences</div><div class="sr-wrap"><div class="sr" id="manage-cats"><div class="si" style="background:rgba(168,120,56,.1)"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#a87838" stroke-width="1.7" stroke-linecap="round"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg></div><div class="sr-info"><div class="sr-t">Manage categories</div><div class="sr-s">${CATS.expense.length} expense · ${CATS.income.length} income</div></div><div class="sr-r">→</div></div><div class="sr" id="more-managelabels" style="cursor:pointer"><div class="si" style="background:rgba(70,114,196,.1)"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#4672c4" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg></div><div class="sr-info"><div class="sr-t">Manage labels</div><div class="sr-s">Show/hide labels and set their colours</div></div><div class="sr-r">→</div></div><div class="sr" id="more-location" style="cursor:pointer"><div class="si" style="background:rgba(70,114,196,.1)"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#4672c4" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg></div><div class="sr-info"><div class="sr-t">Location tagging</div><div class="sr-s">Record where you make each entry (for the map)</div></div><div id="loctoggle-sw" style="width:44px;height:26px;border-radius:13px;background:var(--bg-input);position:relative;flex-shrink:0;transition:.2s"><div id="loctoggle-knob" style="width:20px;height:20px;border-radius:50%;background:#fff;position:absolute;top:3px;left:3px;transition:.2s"></div></div></div><div class="sr" id="more-theme" style="cursor:pointer"><div class="si" style="background:rgba(168,120,56,.12)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#a87838" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg></div><div class="sr-info"><div class="sr-t">Appearance</div><div class="sr-s" id="theme-label">Dark</div></div><div class="sr-r" id="theme-switch" style="font-size:13px;color:var(--blue);font-weight:600">Switch</div></div><div class="sr" id="more-customise" style="cursor:pointer"><div class="si" style="background:rgba(70,114,196,.1)"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#4672c4" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg></div><div class="sr-info"><div class="sr-t">Customise dashboard</div><div class="sr-s">Reorder sections</div></div><div class="sr-r">→</div></div></div><div class="ss-t">Data & Security</div><div class="sr-wrap"><div class="sr" id="more-export"><div class="si" style="background:var(--green-s)"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#3d9468" stroke-width="1.8" stroke-linecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7,10 12,15 17,10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></div><div class="sr-info"><div class="sr-t">Export CSV</div><div class="sr-s">BudgetBakers-compatible format</div></div><div class="sr-r">→</div></div><div class="sr" id="more-sheet"><div class="si" style="background:var(--blue-s)"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#4672c4" stroke-width="1.8" stroke-linecap="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14,2 14,8 20,8"/></svg></div><div class="sr-info"><div class="sr-t">Open Google Sheet</div><div class="sr-s">Your private Drive</div></div><div class="sr-r">↗</div></div><div class="sr" id="more-diag" style="cursor:pointer"><div class="si" style="background:rgba(45,181,110,.1)"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#2db56e" stroke-width="1.8" stroke-linecap="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></div><div class="sr-info"><div class="sr-t">Run diagnostic</div><div class="sr-s">Show balance breakdown</div></div><div class="sr-r">→</div></div><div class="sr" id="more-repair"><div class="si" style="background:rgba(168,72,72,.1)"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#a84848" stroke-width="1.8" stroke-linecap="round"><polyline points="1 4 1 10 7 10"/><polyline points="23 20 23 14 17 14"/><path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15"/></svg></div><div class="sr-info"><div class="sr-t" style="color:var(--red)">Reset categories & accounts</div><div class="sr-s">Rewrites sheet tabs with correct data</div></div><div class="sr-r">→</div></div><div class="sr" id="more-sync"><div class="si" style="background:rgba(114,88,168,.1)"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#7258a8" stroke-width="1.8" stroke-linecap="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg></div><div class="sr-info"><div class="sr-t">Sync now</div><div class="sr-s">Last synced ${lastSync?lastSync.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}):'—'}</div></div><div class="sr-r">→</div></div></div><div class="ss-t">Profile</div><div class="sr-wrap"><div class="sr" id="more-profile"><div class="si" style="background:var(--blue-s)"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#4672c4" stroke-width="1.7" stroke-linecap="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div><div class="sr-info"><div class="sr-t">Profile & Settings</div><div class="sr-s">${userProfile.email||'—'}</div></div><div class="sr-r">→</div></div><div class="sr" id="more-signout"><div class="si" style="background:var(--red-s)"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#a84848" stroke-width="1.7" stroke-linecap="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16,17 21,12 16,7"/><line x1="21" y1="12" x2="9" y2="12"/></svg></div><div class="sr-info"><div class="sr-t" style="color:var(--red)">Sign out</div><div class="sr-s">Clears local session only</div></div></div></div><div class="ss-t" style="margin-top:10px">About</div>
+function renderMore(el){el.innerHTML=`<div class="ph"><h1 class="pt">More</h1></div><div class="ss-t">Accounts</div><div class="sr-wrap">${ACCOUNTS.map((a,ai)=>{const b=getAccBal(a.ID);const hid=a.Hidden||'';const eyeOff=(hid==='dashboard'||hid==='both');const savings=(a.AccType==='savings');return`<div class="sr"><div style="display:flex;flex-direction:column;gap:1px;margin-right:4px"><button class="acc-move" data-accup="${a.ID}" ${ai===0?'disabled':''} style="background:none;border:none;color:${ai===0?'var(--t3)':'var(--t2)'};cursor:${ai===0?'default':'pointer'};padding:0;line-height:1;font-size:11px">▲</button><button class="acc-move" data-accdown="${a.ID}" ${ai===ACCOUNTS.length-1?'disabled':''} style="background:none;border:none;color:${ai===ACCOUNTS.length-1?'var(--t3)':'var(--t2)'};cursor:${ai===ACCOUNTS.length-1?'default':'pointer'};padding:0;line-height:1;font-size:11px">▼</button></div><div class="si" data-editacc="${a.ID}" style="cursor:pointer;background:${a.Colour}18;color:${a.Colour};font-family:var(--mono);font-size:17.7px;font-weight:600">${a.Symbol}</div><div class="sr-info" data-editacc="${a.ID}" style="cursor:pointer"><div class="sr-t">${a.Name}${savings?' <span style="font-size:10px;color:var(--t2);font-weight:500;border:1px solid var(--border2);border-radius:4px;padding:1px 5px;vertical-align:middle">Savings</span>':''}</div><div class="sr-s">${a.Currency} · ${fmt(b,a.Currency)}${hid==='dashboard'?' · hidden on dashboard':''}${hid==='both'?' · fully hidden':''}</div></div><button class="acc-eye" data-acceye="${a.ID}" aria-label="Visibility" style="background:none;border:none;color:${eyeOff?'#d9a441':'var(--t2)'};cursor:pointer;padding:6px;margin-right:2px">${eyeOff?'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>':'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>'}</button><button class="acc-del-btn" data-delacc="${a.ID}" style="background:var(--red-s);border:1px solid rgba(224,82,82,.25);color:var(--red);border-radius:7px;padding:5px 10px;font-size:13px;font-weight:600;cursor:pointer;font-family:var(--font)">Delete</button></div>`;}).join('')}</div><div class="ss-t">Preferences</div><div class="sr-wrap"><div class="sr" id="manage-cats"><div class="si" style="background:rgba(168,120,56,.1)"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#a87838" stroke-width="1.7" stroke-linecap="round"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg></div><div class="sr-info"><div class="sr-t">Manage categories</div><div class="sr-s">${CATS.expense.length} expense · ${CATS.income.length} income</div></div><div class="sr-r">→</div></div><div class="sr" id="more-brighten" style="cursor:pointer"><div class="si" style="background:rgba(217,154,69,.12)"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#d99a45" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><line x1="12" y1="1" x2="12" y2="4"/><line x1="12" y1="20" x2="12" y2="23"/><line x1="1" y1="12" x2="4" y2="12"/><line x1="20" y1="12" x2="23" y2="12"/></svg></div><div class="sr-info"><div class="sr-t">Brighten category colours</div><div class="sr-s">Refresh your categories to the brighter palette</div></div><div class="sr-r">→</div></div><div class="sr" id="more-managelabels" style="cursor:pointer"><div class="si" style="background:rgba(70,114,196,.1)"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#4672c4" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg></div><div class="sr-info"><div class="sr-t">Manage labels</div><div class="sr-s">Show/hide labels and set their colours</div></div><div class="sr-r">→</div></div><div class="sr" id="more-location" style="cursor:pointer"><div class="si" style="background:rgba(70,114,196,.1)"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#4672c4" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg></div><div class="sr-info"><div class="sr-t">Location tagging</div><div class="sr-s">Record where you make each entry (for the map)</div></div><div id="loctoggle-sw" style="width:44px;height:26px;border-radius:13px;background:var(--bg-input);position:relative;flex-shrink:0;transition:.2s"><div id="loctoggle-knob" style="width:20px;height:20px;border-radius:50%;background:#fff;position:absolute;top:3px;left:3px;transition:.2s"></div></div></div><div class="sr" id="more-theme" style="cursor:pointer"><div class="si" style="background:rgba(168,120,56,.12)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#a87838" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg></div><div class="sr-info"><div class="sr-t">Appearance</div><div class="sr-s" id="theme-label">Dark</div></div><div class="sr-r" id="theme-switch" style="font-size:13px;color:var(--blue);font-weight:600">Switch</div></div><div class="sr" id="more-customise" style="cursor:pointer"><div class="si" style="background:rgba(70,114,196,.1)"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#4672c4" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg></div><div class="sr-info"><div class="sr-t">Customise dashboard</div><div class="sr-s">Reorder sections</div></div><div class="sr-r">→</div></div></div><div class="ss-t">Data & Security</div><div class="sr-wrap"><div class="sr" id="more-export"><div class="si" style="background:var(--green-s)"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#3d9468" stroke-width="1.8" stroke-linecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7,10 12,15 17,10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></div><div class="sr-info"><div class="sr-t">Export CSV</div><div class="sr-s">BudgetBakers-compatible format</div></div><div class="sr-r">→</div></div><div class="sr" id="more-sheet"><div class="si" style="background:var(--blue-s)"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#4672c4" stroke-width="1.8" stroke-linecap="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14,2 14,8 20,8"/></svg></div><div class="sr-info"><div class="sr-t">Open Google Sheet</div><div class="sr-s">Your private Drive</div></div><div class="sr-r">↗</div></div><div class="sr" id="more-diag" style="cursor:pointer"><div class="si" style="background:rgba(45,181,110,.1)"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#2db56e" stroke-width="1.8" stroke-linecap="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></div><div class="sr-info"><div class="sr-t">Run diagnostic</div><div class="sr-s">Show balance breakdown</div></div><div class="sr-r">→</div></div><div class="sr" id="more-repair"><div class="si" style="background:rgba(168,72,72,.1)"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#a84848" stroke-width="1.8" stroke-linecap="round"><polyline points="1 4 1 10 7 10"/><polyline points="23 20 23 14 17 14"/><path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15"/></svg></div><div class="sr-info"><div class="sr-t" style="color:var(--red)">Reset categories & accounts</div><div class="sr-s">Rewrites sheet tabs with correct data</div></div><div class="sr-r">→</div></div><div class="sr" id="more-sync"><div class="si" style="background:rgba(114,88,168,.1)"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#7258a8" stroke-width="1.8" stroke-linecap="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg></div><div class="sr-info"><div class="sr-t">Sync now</div><div class="sr-s">Last synced ${lastSync?lastSync.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}):'—'}</div></div><div class="sr-r">→</div></div></div><div class="ss-t">Profile</div><div class="sr-wrap"><div class="sr" id="more-profile"><div class="si" style="background:var(--blue-s)"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#4672c4" stroke-width="1.7" stroke-linecap="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div><div class="sr-info"><div class="sr-t">Profile & Settings</div><div class="sr-s">${userProfile.email||'—'}</div></div><div class="sr-r">→</div></div><div class="sr" id="more-signout"><div class="si" style="background:var(--red-s)"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#a84848" stroke-width="1.7" stroke-linecap="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16,17 21,12 16,7"/><line x1="21" y1="12" x2="9" y2="12"/></svg></div><div class="sr-info"><div class="sr-t" style="color:var(--red)">Sign out</div><div class="sr-s">Clears local session only</div></div></div></div><div class="ss-t" style="margin-top:10px">About</div>
 <div class="card" style="padding:0;margin-bottom:10px;overflow:hidden">
 
   <div id="guide-toggle" style="display:flex;align-items:center;gap:11px;padding:14px 16px;cursor:pointer">
@@ -3300,6 +3329,7 @@ document.getElementById('more-diag')?.addEventListener('click',function(){runDia
   });
   document.getElementById('guide-download')?.addEventListener('click',function(){downloadUserGuide();});
   document.getElementById('more-managelabels')?.addEventListener('click',openLabelManager);
+  document.getElementById('more-brighten')?.addEventListener('click',function(){brightenCategoryColours();});
   // Location tagging toggle (opt-in; privacy-sensitive)
   (function(){
     var sw=document.getElementById('loctoggle-sw');var knob=document.getElementById('loctoggle-knob');
