@@ -258,16 +258,15 @@ const TX_HEADERS=['account','category','currency','amount','ref_currency_amount'
 // ============ APP VERSION & CHANGELOG ============
 // Production-era versioning: MAJOR.MINOR (e.g. v4.0). Bump MINOR each release;
 // bump MAJOR for a significant milestone. Update APP_WHATS_NEW with each release.
-var APP_VERSION='4.3';
+var APP_VERSION='4.4';
 var APP_WHATS_NEW={
-  version:'4.3',
+  version:'4.4',
   date:'July 2026',
   items:[
-    'Brighter, easier-to-read text throughout — much clearer in bright light',
+    'Fixed account order on opening — your chosen order now shows instantly, not an old layout',
+    'Brighter, easier-to-read text throughout',
     'Brighter category colours, with a one-tap option to refresh your existing ones',
-    'Better contrast in the light theme too',
     'Much faster opening — your data appears instantly from the saved copy',
-    'The profile check no longer holds up the app on a weak connection',
     'Offline opening is smoother and more reliable again'
   ]
 };
@@ -804,6 +803,10 @@ function loadFromCache(){
     var d=JSON.parse(s);var raw=d.raw||{};
     TX=rowsToObjects(raw.txR||[]).map(normaliseTx).sort(function(a,b){return new Date(b.date)-new Date(a.date);});
     ACCOUNTS=rowsToObjects(raw.accR||[]).filter(function(a){return a.Active==='TRUE';});
+    // Apply the saved account order (same logic as the full refresh) so the instant
+    // cached view matches your chosen order rather than raw sheet-row order.
+    ACCOUNTS.forEach(function(a,i){if(a.SortOrder===undefined||a.SortOrder==='')a._origIdx=i;});
+    ACCOUNTS.sort(function(a,b){var sa=(a.SortOrder!==undefined&&a.SortOrder!=='')?parseFloat(a.SortOrder):9000+(a._origIdx||0);var sb=(b.SortOrder!==undefined&&b.SortOrder!=='')?parseFloat(b.SortOrder):9000+(b._origIdx||0);return sa-sb;});
     var ac=rowsToObjects(raw.catR||[]).filter(function(c){return c.Active==='TRUE';}).map(function(c){if(!c.Colour&&c.Color)c.Colour=c.Color;return c;});
     CATS.expense=ac.filter(function(c){return c.Type==='expense';});
     CATS.income=ac.filter(function(c){return c.Type==='income';});
