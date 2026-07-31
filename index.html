@@ -258,16 +258,16 @@ const TX_HEADERS=['account','category','currency','amount','ref_currency_amount'
 // ============ APP VERSION & CHANGELOG ============
 // Production-era versioning: MAJOR.MINOR (e.g. v4.0). Bump MINOR each release;
 // bump MAJOR for a significant milestone. Update APP_WHATS_NEW with each release.
-var APP_VERSION='4.4';
+var APP_VERSION='4.5';
 var APP_WHATS_NEW={
-  version:'4.4',
+  version:'4.5',
   date:'July 2026',
   items:[
-    'Fixed account order on opening — your chosen order now shows instantly, not an old layout',
-    'Brighter, easier-to-read text throughout',
-    'Brighter category colours, with a one-tap option to refresh your existing ones',
-    'Much faster opening — your data appears instantly from the saved copy',
-    'Offline opening is smoother and more reliable again'
+    'Saving a transaction is now instant — no more waiting after tapping Add',
+    'Your figures update on screen straightaway; the sheet syncs in the background',
+    'Fixed account order on opening — your chosen order shows instantly',
+    'Brighter, easier-to-read text and category colours',
+    'Much faster opening overall'
   ]
 };
 let sheetId=null,TX=[],ACCOUNTS=[],CATS={expense:[],income:[],transfer:[]},PLANNED=[],BUDGETS=[],SAVINGS_HISTORY=[],userProfile={},curPage='dashboard',txType='expense',selCat=null,trendAcc=null,hideAmounts=false,dashDonutType='expense',statDonutType='expense',recPeriod='30 days',recMonthOff=0,recCustomFrom='',recCustomTo='',statPeriod='month',statMonthOff=0,statYear=new Date().getFullYear(),statCustomS='',statCustomE=new Date().toISOString().split('T')[0],statView='summary',lastSync=null;
@@ -746,6 +746,18 @@ const BB_ACC_MAP={
   '€':'acc_eur','eur':'acc_eur',
 };
 
+function applyLocalTxRows(rows){
+  // Instantly reflect just-saved rows in the in-memory data so the UI updates
+  // without waiting for a full re-download. The background refresh then trues-up.
+  try{
+    (rows||[]).forEach(function(r){
+      var o={};TX_HEADERS.forEach(function(h,i){o[h]=(r[i]!==undefined&&r[i]!==null)?String(r[i]):'';});
+      TX.push(normaliseTx(o));
+    });
+    TX.sort(function(a,b){return new Date(b.date)-new Date(a.date);});
+  }catch(e){console.warn('local tx apply failed',e);}
+}
+
 function normaliseTx(tx){
   // Type normalisation
   var t=(tx.type||'').toLowerCase().trim();
@@ -1086,6 +1098,7 @@ function setupModals(){if(window._wired_setupModals)return;window._wired_setupMo
       var r1=await appendRowResilient('Transactions',rowOut);
       var r2=await appendRowResilient('Transactions',rowIn);
       window.__lastSaveQueued=(r1==='queued'||r2==='queued');
+      var __savedRows=[rowOut,rowIn];
     } else {
       // EXPENSE = negative, INCOME = positive
       var signedAmt=txType==='expense'?-Math.abs(amt):Math.abs(amt);
@@ -1095,9 +1108,15 @@ function setupModals(){if(window._wired_setupModals)return;window._wired_setupMo
       const row=[acc,selCat||'',cur,String(signedAmt),String(signedRef),sheetType,payType,'',note,tstamp,gLat,gLng,gAcc,'','',payee,labels,'',''];
       var rr=await appendRowResilient('Transactions',row);
       window.__lastSaveQueued=(rr==='queued');
+      var __savedRows=[row];
     }
     var wasQueued=window.__lastSaveQueued;
-    if(!wasQueued){await loadAll();}else{overlayPendingTx();if(typeof updatePendingBadge==='function')updatePendingBadge();}
+    if(!wasQueued){
+      // Show the new entry instantly from local data; refresh from the sheet in the
+      // background (not awaited) so saving no longer blocks on a full re-download.
+      applyLocalTxRows(typeof __savedRows!=='undefined'?__savedRows:[]);
+      loadAll().then(function(){try{render(curPage);}catch(e){}}).catch(function(){});
+    }else{overlayPendingTx();if(typeof updatePendingBadge==='function')updatePendingBadge();}
     closeModal('modal-tx');
     toast(wasQueued?'Saved offline — will sync ✓':'Saved ✓','suc');
     render(curPage);
