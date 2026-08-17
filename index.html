@@ -258,16 +258,15 @@ const TX_HEADERS=['account','category','currency','amount','ref_currency_amount'
 // ============ APP VERSION & CHANGELOG ============
 // Production-era versioning: MAJOR.MINOR (e.g. v4.0). Bump MINOR each release;
 // bump MAJOR for a significant milestone. Update APP_WHATS_NEW with each release.
-var APP_VERSION='4.5';
+var APP_VERSION='4.6';
 var APP_WHATS_NEW={
-  version:'4.5',
-  date:'July 2026',
+  version:'4.6',
+  date:'August 2026',
   items:[
-    'Saving a transaction is now instant — no more waiting after tapping Add',
-    'Your figures update on screen straightaway; the sheet syncs in the background',
-    'Fixed account order on opening — your chosen order shows instantly',
-    'Brighter, easier-to-read text and category colours',
-    'Much faster opening overall'
+    'No more “updating…” on every open — the app only refreshes when your data is actually stale (over 10 minutes old)',
+    'Planned payments are checked once per day instead of on every open',
+    'Saving a transaction is instant — the sheet syncs in the background',
+    'Faster opening, brighter text, and your chosen account order from the first moment'
   ]
 };
 let sheetId=null,TX=[],ACCOUNTS=[],CATS={expense:[],income:[],transfer:[]},PLANNED=[],BUDGETS=[],SAVINGS_HISTORY=[],userProfile={},curPage='dashboard',txType='expense',selCat=null,trendAcc=null,hideAmounts=false,dashDonutType='expense',statDonutType='expense',recPeriod='30 days',recMonthOff=0,recCustomFrom='',recCustomTo='',statPeriod='month',statMonthOff=0,statYear=new Date().getFullYear(),statCustomS='',statCustomE=new Date().toISOString().split('T')[0],statView='summary',lastSync=null;
@@ -807,6 +806,10 @@ var DATA_CACHE_KEY='financeDataCache';
 function saveDataCache(raw){
   try{localStorage.setItem(DATA_CACHE_KEY,JSON.stringify({t:Date.now(),raw:raw}));}catch(e){/* quota — ignore */}
 }
+function dataCacheAgeMs(){
+  // How old is the saved data copy? Used to skip pointless re-downloads on frequent opens.
+  try{var s=localStorage.getItem(DATA_CACHE_KEY);if(!s)return Infinity;var d=JSON.parse(s);return Date.now()-(d.t||0);}catch(e){return Infinity;}
+}
 function hasDataCache(){try{return !!localStorage.getItem(DATA_CACHE_KEY);}catch(e){return false;}}
 // Rebuild the in-memory data from the local cache (used when offline).
 function loadFromCache(){
@@ -910,15 +913,31 @@ async function onSignedIn(){hideSplash();document.getElementById('auth').style.d
   // even on a weak connection. The fresh data loads in the background below.
   var shownFromCache=false;
   if(typeof hasDataCache==='function'&&hasDataCache()){
-    try{loadFromCache();window.__refreshing=true;if(typeof fetchLiveRates==='function'){try{fetchLiveRates();}catch(e){}}setupNav();setupFab();setupModals();render('dashboard');shownFromCache=true;}catch(e){console.error('cache show',e);}
+    try{var __fresh=(typeof dataCacheAgeMs==='function')&&dataCacheAgeMs()<10*60*1000;loadFromCache();window.__refreshing=!__fresh;if(typeof fetchLiveRates==='function'){try{fetchLiveRates();}catch(e){}}setupNav();setupFab();setupModals();render('dashboard');shownFromCache=true;}catch(e){console.error('cache show',e);}
   }
   if(!shownFromCache){document.getElementById('p-dashboard').innerHTML='<div class="spinner"></div>';}
+  // If the saved copy is under 10 minutes old, skip the full re-download — opening the app
+  // several times in a row shouldn't re-fetch everything each time. Planned payments are
+  // still checked once per day (they work on dates, not minutes).
+  if(shownFromCache&&typeof dataCacheAgeMs==='function'&&dataCacheAgeMs()<10*60*1000){
+    try{
+      var __today=new Date().toLocaleDateString('en-CA');
+      if(localStorage.getItem('finance_autoplan_date')!==__today){
+        await getOrCreateSheet();
+        await checkAutoPlanned();
+        try{localStorage.setItem('finance_autoplan_date',__today);}catch(e){}
+      }
+      if(typeof flushQueue==='function'&&queueLength()>0){flushQueue(false);}
+    }catch(e){console.warn('fresh-skip path',e);}
+    return;
+  }
   try{
     await getOrCreateSheet();
     if(typeof migrateSchema==='function'){var _mkey='finance_schema_migrated_'+APP_VERSION;var _done=false;try{_done=localStorage.getItem(_mkey)==='1';}catch(e){}if(!_done){await migrateSchema();try{localStorage.setItem(_mkey,'1');}catch(e){}}}
     if(typeof fetchLiveRates==='function'){await fetchLiveRates();}
     await loadAll();
     await checkAutoPlanned();
+    try{localStorage.setItem('finance_autoplan_date',new Date().toLocaleDateString('en-CA'));}catch(e){}
     window.__refreshing=false;
     setupNav();setupFab();setupModals();
     render(typeof curPage!=='undefined'&&curPage?curPage:'dashboard');
