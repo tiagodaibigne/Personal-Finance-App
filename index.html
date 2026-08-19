@@ -258,15 +258,15 @@ const TX_HEADERS=['account','category','currency','amount','ref_currency_amount'
 // ============ APP VERSION & CHANGELOG ============
 // Production-era versioning: MAJOR.MINOR (e.g. v4.0). Bump MINOR each release;
 // bump MAJOR for a significant milestone. Update APP_WHATS_NEW with each release.
-var APP_VERSION='4.6';
+var APP_VERSION='4.7';
 var APP_WHATS_NEW={
-  version:'4.6',
+  version:'4.7',
   date:'August 2026',
   items:[
-    'No more “updating…” on every open — the app only refreshes when your data is actually stale (over 10 minutes old)',
-    'Planned payments are checked once per day instead of on every open',
-    'Saving a transaction is instant — the sheet syncs in the background',
-    'Faster opening, brighter text, and your chosen account order from the first moment'
+    'Opening update is quicker again — exchange rates and data now fetch at the same time',
+    'On days a planned payment auto-logs, your data no longer downloads twice',
+    'One combined fetch instead of seven separate ones on every open',
+    'Saving a transaction is instant'
   ]
 };
 let sheetId=null,TX=[],ACCOUNTS=[],CATS={expense:[],income:[],transfer:[]},PLANNED=[],BUDGETS=[],SAVINGS_HISTORY=[],userProfile={},curPage='dashboard',txType='expense',selCat=null,trendAcc=null,hideAmounts=false,dashDonutType='expense',statDonutType='expense',recPeriod='30 days',recMonthOff=0,recCustomFrom='',recCustomTo='',statPeriod='month',statMonthOff=0,statYear=new Date().getFullYear(),statCustomS='',statCustomE=new Date().toISOString().split('T')[0],statView='summary',lastSync=null;
@@ -806,10 +806,6 @@ var DATA_CACHE_KEY='financeDataCache';
 function saveDataCache(raw){
   try{localStorage.setItem(DATA_CACHE_KEY,JSON.stringify({t:Date.now(),raw:raw}));}catch(e){/* quota — ignore */}
 }
-function dataCacheAgeMs(){
-  // How old is the saved data copy? Used to skip pointless re-downloads on frequent opens.
-  try{var s=localStorage.getItem(DATA_CACHE_KEY);if(!s)return Infinity;var d=JSON.parse(s);return Date.now()-(d.t||0);}catch(e){return Infinity;}
-}
 function hasDataCache(){try{return !!localStorage.getItem(DATA_CACHE_KEY);}catch(e){return false;}}
 // Rebuild the in-memory data from the local cache (used when offline).
 function loadFromCache(){
@@ -834,7 +830,18 @@ function loadFromCache(){
   }catch(e){console.error('loadFromCache',e);return false;}
 }
 
-async function loadAll(){const[txR,accR,catR,planR,budR,setR,savR]=await Promise.all([readSheet('Transactions'),readSheet('Accounts'),readSheet('Categories'),readSheet('PlannedPayments'),readSheet('Budgets'),readSheet('Settings').catch(function(){return[];}),readSheet('SavingsHistory').catch(function(){return[];})]);SAVINGS_HISTORY=rowsToObjects(savR||[]);mergeLabelColoursFromSheet(setR);saveDataCache({txR:txR,accR:accR,catR:catR,planR:planR,budR:budR});TX=rowsToObjects(txR).map(normaliseTx).sort((a,b)=>new Date(b.date)-new Date(a.date));ACCOUNTS=rowsToObjects(accR).filter(a=>a.Active==='TRUE');ACCOUNTS.forEach(function(a,i){if(a.SortOrder===undefined||a.SortOrder==='')a._origIdx=i;});ACCOUNTS.sort(function(a,b){var sa=(a.SortOrder!==undefined&&a.SortOrder!=='')?parseFloat(a.SortOrder):9000+(a._origIdx||0);var sb=(b.SortOrder!==undefined&&b.SortOrder!=='')?parseFloat(b.SortOrder):9000+(b._origIdx||0);return sa-sb;});const ac=rowsToObjects(catR).filter(c=>c.Active==='TRUE').map(function(c){if(!c.Colour&&c.Color)c.Colour=c.Color;return c;});CATS.expense=ac.filter(c=>c.Type==='expense');CATS.income=ac.filter(c=>c.Type==='income');CATS.transfer=ac.filter(c=>c.Type==='transfer');PLANNED=rowsToObjects(planR).filter(p=>p.Active==='TRUE');BUDGETS=rowsToObjects(budR).filter(b=>b.Active==='TRUE');lastSync=new Date();overlayPendingTx();if(typeof updatePendingBadge==='function')updatePendingBadge();}
+async function loadAll(){
+  // One batched request for all seven tabs instead of seven separate requests —
+  // far quicker on mobile connections. Falls back to individual reads if needed.
+  var txR,accR,catR,planR,budR,setR,savR;
+  try{
+    var br=await gapi.client.sheets.spreadsheets.values.batchGet({spreadsheetId:sheetId,ranges:['Transactions','Accounts','Categories','PlannedPayments','Budgets','Settings','SavingsHistory']});
+    var vr=(br.result&&br.result.valueRanges)||[];
+    txR=(vr[0]&&vr[0].values)||[];accR=(vr[1]&&vr[1].values)||[];catR=(vr[2]&&vr[2].values)||[];planR=(vr[3]&&vr[3].values)||[];budR=(vr[4]&&vr[4].values)||[];setR=(vr[5]&&vr[5].values)||[];savR=(vr[6]&&vr[6].values)||[];
+  }catch(e){
+    var all=await Promise.all([readSheet('Transactions'),readSheet('Accounts'),readSheet('Categories'),readSheet('PlannedPayments'),readSheet('Budgets'),readSheet('Settings').catch(function(){return[];}),readSheet('SavingsHistory').catch(function(){return[];})]);
+    txR=all[0];accR=all[1];catR=all[2];planR=all[3];budR=all[4];setR=all[5];savR=all[6];
+  }SAVINGS_HISTORY=rowsToObjects(savR||[]);mergeLabelColoursFromSheet(setR);saveDataCache({txR:txR,accR:accR,catR:catR,planR:planR,budR:budR});TX=rowsToObjects(txR).map(normaliseTx).sort((a,b)=>new Date(b.date)-new Date(a.date));ACCOUNTS=rowsToObjects(accR).filter(a=>a.Active==='TRUE');ACCOUNTS.forEach(function(a,i){if(a.SortOrder===undefined||a.SortOrder==='')a._origIdx=i;});ACCOUNTS.sort(function(a,b){var sa=(a.SortOrder!==undefined&&a.SortOrder!=='')?parseFloat(a.SortOrder):9000+(a._origIdx||0);var sb=(b.SortOrder!==undefined&&b.SortOrder!=='')?parseFloat(b.SortOrder):9000+(b._origIdx||0);return sa-sb;});const ac=rowsToObjects(catR).filter(c=>c.Active==='TRUE').map(function(c){if(!c.Colour&&c.Color)c.Colour=c.Color;return c;});CATS.expense=ac.filter(c=>c.Type==='expense');CATS.income=ac.filter(c=>c.Type==='income');CATS.transfer=ac.filter(c=>c.Type==='transfer');PLANNED=rowsToObjects(planR).filter(p=>p.Active==='TRUE');BUDGETS=rowsToObjects(budR).filter(b=>b.Active==='TRUE');lastSync=new Date();overlayPendingTx();if(typeof updatePendingBadge==='function')updatePendingBadge();}
 function exportCSV(){const rows=[TX_HEADERS,...TX.map(tx=>TX_HEADERS.map(h=>tx[h]||''))];const csv=rows.map(r=>r.map(v=>`"${(v||'').toString().replace(/"/g,'""')}"`).join(',')).join('\n');const url=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));const a=document.createElement('a');a.href=url;a.download=`finance_${new Date().toISOString().split('T')[0]}.csv`;a.click();URL.revokeObjectURL(url);toast('CSV exported','suc');}
 
 function getTheme(){return localStorage.getItem('financeTheme')||'dark';}
@@ -913,31 +920,19 @@ async function onSignedIn(){hideSplash();document.getElementById('auth').style.d
   // even on a weak connection. The fresh data loads in the background below.
   var shownFromCache=false;
   if(typeof hasDataCache==='function'&&hasDataCache()){
-    try{var __fresh=(typeof dataCacheAgeMs==='function')&&dataCacheAgeMs()<10*60*1000;loadFromCache();window.__refreshing=!__fresh;if(typeof fetchLiveRates==='function'){try{fetchLiveRates();}catch(e){}}setupNav();setupFab();setupModals();render('dashboard');shownFromCache=true;}catch(e){console.error('cache show',e);}
+    try{loadFromCache();window.__refreshing=true;if(typeof fetchLiveRates==='function'){try{fetchLiveRates();}catch(e){}}setupNav();setupFab();setupModals();render('dashboard');shownFromCache=true;}catch(e){console.error('cache show',e);}
   }
   if(!shownFromCache){document.getElementById('p-dashboard').innerHTML='<div class="spinner"></div>';}
-  // If the saved copy is under 10 minutes old, skip the full re-download — opening the app
-  // several times in a row shouldn't re-fetch everything each time. Planned payments are
-  // still checked once per day (they work on dates, not minutes).
-  if(shownFromCache&&typeof dataCacheAgeMs==='function'&&dataCacheAgeMs()<10*60*1000){
-    try{
-      var __today=new Date().toLocaleDateString('en-CA');
-      if(localStorage.getItem('finance_autoplan_date')!==__today){
-        await getOrCreateSheet();
-        await checkAutoPlanned();
-        try{localStorage.setItem('finance_autoplan_date',__today);}catch(e){}
-      }
-      if(typeof flushQueue==='function'&&queueLength()>0){flushQueue(false);}
-    }catch(e){console.warn('fresh-skip path',e);}
-    return;
-  }
   try{
     await getOrCreateSheet();
     if(typeof migrateSchema==='function'){var _mkey='finance_schema_migrated_'+APP_VERSION;var _done=false;try{_done=localStorage.getItem(_mkey)==='1';}catch(e){}if(!_done){await migrateSchema();try{localStorage.setItem(_mkey,'1');}catch(e){}}}
-    if(typeof fetchLiveRates==='function'){await fetchLiveRates();}
-    await loadAll();
+    // Fetch FX rates and the sheet data AT THE SAME TIME (they were sequential,
+    // so a slow rates fetch delayed the whole refresh).
+    await Promise.all([
+      (typeof fetchLiveRates==='function'?fetchLiveRates().catch(function(){}):Promise.resolve()),
+      loadAll()
+    ]);
     await checkAutoPlanned();
-    try{localStorage.setItem('finance_autoplan_date',new Date().toLocaleDateString('en-CA'));}catch(e){}
     window.__refreshing=false;
     setupNav();setupFab();setupModals();
     render(typeof curPage!=='undefined'&&curPage?curPage:'dashboard');
@@ -4080,11 +4075,17 @@ async function checkAutoPlanned(){
     var built=buildPlannedTxRow(p,nextStr+' 09:00:00');
     if(built.error){console.warn('Skipping auto-log for '+p.Name+': '+built.error+' unresolved');await advancePlannedDate(p);continue;}
     await appendRow('Transactions',built.row);
+    if(typeof applyLocalTxRows==='function')applyLocalTxRows([built.row]);
     logged++;
     await advancePlannedDate(p);
   }
   if(logged>0){
-    await loadAll();
+    // The logged entries are already applied locally; just refresh the small
+    // PlannedPayments tab for the advanced dates (avoids a second full download).
+    try{
+      var planR2=await readSheet('PlannedPayments');
+      PLANNED=rowsToObjects(planR2).filter(function(p){return p.Active==='TRUE';});
+    }catch(e){}
     toast(logged+' planned payment'+(logged>1?'s':'')+' auto-logged ✓','suc');
   }
 }
